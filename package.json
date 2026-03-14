@@ -1,0 +1,21 @@
+{
+  "name": "setup-claude-memory",
+  "version": "1.0.0",
+  "description": "Interactive CLI to set up Claude persistent memory via iCloud — powered by MCP Knowledge Graph",
+  "bin": {
+    "setup-claude-memory": "./bin/setup.js"
+  },
+  "scripts": {
+    "start": "node ./bin/setup.js"
+  },
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "inquirer": "^8.2.6"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": ["claude", "mcp", "memory", "icloud", "ai"],
+  "author": "Kam Studios",
+  "license": "MIT"
+}

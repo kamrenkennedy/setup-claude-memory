@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 
-const inquirer = require('inquirer');
-const chalk    = require('chalk');
-const os       = require('os');
-const fs       = require('fs');
-const path     = require('path');
+const inquirer      = require('inquirer');
+const chalk         = require('chalk');
+const os            = require('os');
+const fs            = require('fs');
+const path          = require('path');
+const { execSync }  = require('child_process');
 
 const homeDir       = os.homedir();
 const ICLOUD_BASE   = path.join(homeDir, 'Library', 'Mobile Documents', 'com~apple~CloudDocs');
@@ -82,6 +83,16 @@ function step(label, fn) {
   } catch (err) {
     console.log(chalk.red(`✗\n   ${err.message}`));
     process.exit(1);
+  }
+}
+
+// Pin an iCloud folder so macOS keeps it downloaded locally at all times
+// (equivalent to Finder → right-click → "Keep Downloaded")
+function pinToICloud(folderPath) {
+  try {
+    execSync(`xattr -w com.apple.fileprovider.pinned 1 "${folderPath}"`);
+  } catch {
+    // Non-critical — the MCP still works, files just might get offloaded
   }
 }
 
@@ -267,15 +278,16 @@ async function runFreshInstall({ config, serverName, deepServerName, firstName, 
   const indexPath = path.join(deepPath, 'index.json');
 
   step('1. Creating iCloud memory folder...   ', () => fs.mkdirSync(memoryPath, { recursive: true }));
-  step('2. Configuring knowledge graph MCP... ', () => { config.mcpServers[serverName] = kgEntry(memoryPath); });
-  step('3. Configuring deep context MCP...    ', () => { config.mcpServers[deepServerName] = deepEntry(memoryPath); });
-  step('4. Saving Claude Desktop config...    ', () => saveClaudeConfig(config));
-  step('5. Creating deep context archive...   ', () => {
+  step('2. Pinning folder (Keep Downloaded)...', () => pinToICloud(memoryPath));
+  step('3. Configuring knowledge graph MCP... ', () => { config.mcpServers[serverName] = kgEntry(memoryPath); });
+  step('4. Configuring deep context MCP...    ', () => { config.mcpServers[deepServerName] = deepEntry(memoryPath); });
+  step('5. Saving Claude Desktop config...    ', () => saveClaudeConfig(config));
+  step('6. Creating deep context archive...   ', () => {
     fs.mkdirSync(deepPath, { recursive: true });
     if (!fs.existsSync(indexPath)) fs.writeFileSync(indexPath, '[]', 'utf8');
   });
 
-  await runConfigQuestionnaire(configPath, firstName, false, '6.');
+  await runConfigQuestionnaire(configPath, firstName, false, '7.');
 
   console.log('');
   console.log(chalk.bold.green('✅  Setup complete!\n'));
@@ -330,7 +342,8 @@ async function runMachine2Setup({ config, serverName, deepServerName, firstName,
   step('1. Configuring knowledge graph MCP...  ', () => { config.mcpServers[serverName] = kgEntry(memoryPath); });
   step('2. Configuring deep context MCP...     ', () => { config.mcpServers[deepServerName] = deepEntry(memoryPath); });
   step('3. Saving Claude Desktop config...     ', () => saveClaudeConfig(config));
-  step('4. Verifying deep context archive...   ', () => {
+  step('4. Pinning folder (Keep Downloaded)... ', () => pinToICloud(memoryPath));
+  step('5. Verifying deep context archive...   ', () => {
     // deep/ should already be synced from the first machine, but ensure it exists
     // in case iCloud hasn't finished syncing yet
     fs.mkdirSync(deepPath, { recursive: true });
@@ -339,7 +352,7 @@ async function runMachine2Setup({ config, serverName, deepServerName, firstName,
 
   // Store first_name if it wasn't in config.json yet
   if (userConfig && !userConfig.first_name) {
-    step('5. Updating configuration...           ', () => {
+    step('6. Updating configuration...           ', () => {
       fs.writeFileSync(configPath, JSON.stringify({ ...userConfig, first_name: firstName }, null, 2), 'utf8');
     });
   }

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Kam Memory — Deep Context Layer MCP Server
-// Part of setup-claude-memory v1.1.0
+// Part of setup-claude-memory v1.2.0
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -252,8 +252,34 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     {
       name: 'aim_deep_store',
-      description:
-        'Store a long-form context document in the deep context archive. Use after any substantive session. Document types: session-summary, creative-brief, research, decision-log, project-narrative.',
+      description: [
+        'Store a long-form context document in the deep context archive, synced across machines via iCloud.',
+        '',
+        'WHEN TO USE THIS TOOL (deep context):',
+        '- End-of-session summaries from long or complex sessions',
+        '- Creative development threads (treatment development, concept evolution)',
+        '- Decision reasoning: why a direction was chosen, what was rejected and why',
+        '- Research passes on any topic',
+        '- Project narratives that capture process, context, or rationale',
+        '- Anything longer than ~300 words that tells a story or captures a process',
+        '',
+        'WHEN TO USE aim_memory_* (knowledge graph) INSTEAD:',
+        '- Quick facts: contact info, client names, project statuses, preferences',
+        '- Entity relationships: who works with whom, what belongs to what',
+        '- Session state: what was just completed, what is next',
+        '- Short structured notes queried frequently',
+        '',
+        notionGuidance,
+        '',
+        'General principle: Notion for structure, knowledge graph for facts, deep context for narrative, calendar for time.',
+        '',
+        'SESSION WRAP-UP: After any substantive session involving significant creative work, multi-step planning,',
+        'research, or decision-making — automatically call aim_deep_store with a session-summary, then store a',
+        'pointer entity in the knowledge graph (aim_memory_store), then confirm to the user:',
+        '"Session saved to your deep context archive — you can pick this up on any machine."',
+        '',
+        'Document types: session-summary, creative-brief, research, decision-log, project-narrative.',
+      ].join('\n'),
       inputSchema: {
         type: 'object',
         required: ['id', 'project', 'tags', 'type', 'date', 'summary', 'content'],
@@ -272,7 +298,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: 'aim_deep_search',
       description:
-        'Search the deep context archive by keyword, tag, project, client, or date range. Returns metadata + summaries only — use aim_deep_get to load full content of a match.',
+        'Search the deep context archive by keyword, tag, project, client, or date range. Returns metadata + summaries only (not full document content) — use aim_deep_get to load the full content of any match. Use this to find prior session summaries, creative briefs, research notes, or decision logs across all projects.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -287,7 +313,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: 'aim_deep_get',
-      description: 'Retrieve the full content of a specific deep context document by ID.',
+      description: 'Retrieve the full content of a specific deep context document by ID. Use after aim_deep_search or aim_deep_list to load the complete document.',
       inputSchema: {
         type: 'object',
         required: ['id'],
@@ -299,7 +325,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: 'aim_deep_list',
       description:
-        'List all deep context documents sorted by date descending. Returns metadata only. Check system_notice in the response for any available update notifications.',
+        'List all deep context documents sorted by date descending. Returns metadata only — use aim_deep_get to load full content. Good starting point when picking up a conversation, reviewing past sessions, or exploring what has been stored. Check system_notice in the response for any available update notifications.',
       inputSchema: {
         type: 'object',
         properties: {

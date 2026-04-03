@@ -88,12 +88,72 @@ function step(label, fn) {
 
 // Pin an iCloud folder so macOS keeps it downloaded locally at all times
 // (equivalent to Finder → right-click → "Keep Downloaded")
+// Uses brctl at folder level (pins all current + future files) with xattr fallback
 function pinToICloud(folderPath) {
   try {
-    execSync(`xattr -w com.apple.fileprovider.pinned 1 "${folderPath}"`);
+    execSync(`brctl download "${folderPath}" 2>/dev/null`);
   } catch {
-    // Non-critical — the MCP still works, files just might get offloaded
+    try {
+      execSync(`xattr -w com.apple.fileprovider.pinned 1 "${folderPath}"`);
+    } catch {
+      // Non-critical — the MCP still works, files just might get offloaded
+    }
   }
+}
+
+// ─── CLAUDE.md global config ────────────────────────────────────────────────
+
+const CLAUDE_MD_DIR  = path.join(homeDir, '.claude');
+const CLAUDE_MD_PATH = path.join(CLAUDE_MD_DIR, 'CLAUDE.md');
+
+const CLAUDE_MD_TEMPLATE = `# Global Claude Instructions
+
+## Session Wrap (mandatory)
+
+At the end of every session where meaningful work was done — any topic, any project — perform a session wrap before closing out:
+
+1. **Memory MCP** (\`aim_memory_store\` or \`aim_memory_add_facts\`) — update the relevant project entity with current status, what was done, what's next, and key file locations. Remove stale observations that are no longer accurate.
+2. **Deep Context** (\`aim_deep_store\`) — store a session summary with full narrative: what happened, decisions made, current state, how to resume.
+3. Both systems must be current — they are the only things that persist across machines and sessions.
+
+Don't wait to be asked. After finishing the main work, proactively run the session wrap. If the session is being cut short, prioritize the memory update over finishing extra tasks — the memory is what carries forward.
+
+## Memory MCP Usage
+
+- Memory MCP and Deep Context MCP are always available — use both
+- Memory MCP = quick facts, project status, current state (knowledge graph)
+- Deep Context = session narratives, decision logs, detailed context (long-form)
+- When starting a new session, search both if the user references prior work
+- When the user says "pick up where we left off," search Memory + Deep Context immediately before doing anything else
+`;
+
+function setupClaudeMd(icloudClaudeDir) {
+  const icloudMdPath = path.join(icloudClaudeDir, 'CLAUDE.md');
+
+  // Create iCloud Claude config directory
+  fs.mkdirSync(icloudClaudeDir, { recursive: true });
+
+  // Write CLAUDE.md to iCloud (only if it doesn't exist — don't overwrite user edits)
+  if (!fs.existsSync(icloudMdPath)) {
+    fs.writeFileSync(icloudMdPath, CLAUDE_MD_TEMPLATE, 'utf8');
+  }
+
+  // Ensure ~/.claude/ exists
+  fs.mkdirSync(CLAUDE_MD_DIR, { recursive: true });
+
+  // Create symlink (remove existing file/symlink first)
+  try {
+    const stat = fs.lstatSync(CLAUDE_MD_PATH);
+    if (stat.isSymbolicLink() || stat.isFile()) {
+      fs.unlinkSync(CLAUDE_MD_PATH);
+    }
+  } catch {
+    // Doesn't exist — that's fine
+  }
+  fs.symlinkSync(icloudMdPath, CLAUDE_MD_PATH);
+
+  // Pin the iCloud Claude config folder
+  pinToICloud(icloudClaudeDir);
 }
 
 // ─── main ────────────────────────────────────────────────────────────────────
@@ -286,8 +346,16 @@ async function runFreshInstall({ config, serverName, deepServerName, firstName, 
     fs.mkdirSync(deepPath, { recursive: true });
     if (!fs.existsSync(indexPath)) fs.writeFileSync(indexPath, '[]', 'utf8');
   });
+  step('7. Setting up global CLAUDE.md...     ', () => {
+    const icloudClaudeDir = path.join(ICLOUD_BASE, path.basename(path.dirname(memoryPath)), 'Claude');
+    // Fallback: put it alongside the memory folder if structure doesn't fit
+    const claudeDir = fs.existsSync(path.dirname(memoryPath))
+      ? path.join(path.dirname(memoryPath), 'Claude')
+      : path.join(ICLOUD_BASE, 'Claude');
+    setupClaudeMd(claudeDir);
+  });
 
-  await runConfigQuestionnaire(configPath, firstName, false, '7.');
+  await runConfigQuestionnaire(configPath, firstName, false, '8.');
 
   console.log('');
   console.log(chalk.bold.green('✅  Setup complete!\n'));
@@ -295,9 +363,11 @@ async function runFreshInstall({ config, serverName, deepServerName, firstName, 
   console.log(`  1. Fully quit Claude Desktop  ${chalk.dim('(Cmd+Q — not just close the window)')}`);
   console.log('  2. Relaunch Claude Desktop');
   console.log(`  3. Click  +  →  Connectors  — you should see  "${chalk.cyan(serverName)}"  and  "${chalk.cyan(deepServerName)}"\n`);
-  console.log(chalk.bold('Deep context:'));
-  console.log('  After any substantive session, Claude will automatically save a summary so you');
-  console.log('  can pick up right where you left off on any machine.\n');
+  console.log(chalk.bold('Session memory:'));
+  console.log('  A global CLAUDE.md has been created and symlinked to ~/.claude/CLAUDE.md.');
+  console.log('  It instructs Claude to always save session state to Memory + Deep Context');
+  console.log('  at the end of every session — so you can pick up right where you left off');
+  console.log('  on any machine. Edit the iCloud copy to customize.\n');
   console.log(chalk.dim(`Setting up a second Mac? Run this script there — it'll detect your iCloud folder automatically.\n`));
 }
 
@@ -317,6 +387,12 @@ async function runUpgrade({ config, serverName, deepServerName, firstName, memor
       if (!fs.existsSync(indexPath)) fs.writeFileSync(indexPath, '[]', 'utf8');
     });
   }
+
+  // Set up global CLAUDE.md (symlinked to iCloud)
+  step(`${n++}. Setting up global CLAUDE.md...      `, () => {
+    const claudeDir = path.join(path.dirname(memoryPath), 'Claude');
+    setupClaudeMd(claudeDir);
+  });
 
   if (!hasConfig) {
     await runConfigQuestionnaire(configPath, firstName, false, `${n++}.`);
@@ -349,10 +425,14 @@ async function runMachine2Setup({ config, serverName, deepServerName, firstName,
     fs.mkdirSync(deepPath, { recursive: true });
     if (!fs.existsSync(indexPath)) fs.writeFileSync(indexPath, '[]', 'utf8');
   });
+  step('6. Setting up global CLAUDE.md...      ', () => {
+    const claudeDir = path.join(path.dirname(memoryPath), 'Claude');
+    setupClaudeMd(claudeDir);
+  });
 
   // Store first_name if it wasn't in config.json yet
   if (userConfig && !userConfig.first_name) {
-    step('6. Updating configuration...           ', () => {
+    step('7. Updating configuration...           ', () => {
       fs.writeFileSync(configPath, JSON.stringify({ ...userConfig, first_name: firstName }, null, 2), 'utf8');
     });
   }

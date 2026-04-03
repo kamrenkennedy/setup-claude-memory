@@ -400,7 +400,7 @@ function kgEntry(memoryPath) {
 }
 
 function deepEntry(memoryPath) {
-  return { command: 'npx', args: ['-y', '--package=setup-claude-memory', 'aim-deep-context-server', '--memory-path', memoryPath] };
+  return { command: 'npx', args: ['-y', '--package=setup-claude-memory@latest', 'aim-deep-context-server', '--memory-path', memoryPath] };
 }
 
 function readUserConfig(configPath) {

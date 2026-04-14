@@ -59,6 +59,20 @@ Use the **same folder name** when prompted (default: `Claude Memory`). Your iClo
 
 ---
 
+## Family Memory (optional, shared across family)
+
+After setting up your personal memory, the CLI asks if you share an iCloud folder with family members. If yes, it deploys a **Family Memory** template into `<shared folder>/Claude/Family Memory/` and installs a routing block in `~/.claude/CLAUDE.md` so Claude consults shared family facts (insurance, house, pets, shared finances) before answering family questions.
+
+To install family memory on an already-configured Mac, or on a partner's Mac that already has their own personal memory:
+
+```bash
+npx setup-claude-memory --family
+```
+
+The routing block is idempotent — re-running is safe. Templates never clobber existing files, so edits you make to `FAMILY_MEMORY.md` or `facts.json` stick.
+
+---
+
 ## Your memory file
 
 All memories live here — you can open, read, or edit it anytime:

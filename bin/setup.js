@@ -11,6 +11,10 @@ const homeDir       = os.homedir();
 const ICLOUD_BASE   = path.join(homeDir, 'Library', 'Mobile Documents', 'com~apple~CloudDocs');
 const CLAUDE_CONFIG = path.join(homeDir, 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json');
 
+const FAMILY_ROUTING_MARKER_OPEN  = '<!-- family-memory-routing v1 -->';
+const FAMILY_ROUTING_MARKER_CLOSE = '<!-- /family-memory-routing -->';
+const FAMILY_MEMORY_SUBPATH       = path.join('Claude', 'Family Memory');
+
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 function checkPrerequisites() {
@@ -159,6 +163,17 @@ function setupClaudeMd(icloudClaudeDir) {
 // ─── main ────────────────────────────────────────────────────────────────────
 
 async function main() {
+  const argv = process.argv.slice(2);
+  const familyOnly = argv.includes('--family');
+
+  if (familyOnly) {
+    console.log(chalk.bold.cyan('\n👪  Family Memory Setup\n'));
+    const errs = checkPrerequisites();
+    if (errs.length) { errs.forEach(e => console.log(chalk.red(`✗ ${e}`))); process.exit(1); }
+    await runFamilySetup();
+    return;
+  }
+
   console.log(chalk.bold.cyan('\n🧠  Claude Memory Setup\n'));
 
   const errors = checkPrerequisites();
@@ -205,12 +220,14 @@ async function main() {
         config.mcpServers[deepServerName] = deepEntry(memoryPath);
         saveClaudeConfig(config);
         console.log(chalk.bold.green('\n✅  All good — nothing changed.\n'));
+        await maybePromptFamilySetup();
         return;
       }
 
       await runConfigQuestionnaire(configPath, firstName, true);
       console.log(chalk.bold.green('\n✅  Configuration updated.\n'));
       console.log(chalk.dim('Restart Claude Desktop for changes to take effect.\n'));
+      await maybePromptFamilySetup();
       return;
 
     } else {
@@ -369,6 +386,8 @@ async function runFreshInstall({ config, serverName, deepServerName, firstName, 
   console.log('  at the end of every session — so you can pick up right where you left off');
   console.log('  on any machine. Edit the iCloud copy to customize.\n');
   console.log(chalk.dim(`Setting up a second Mac? Run this script there — it'll detect your iCloud folder automatically.\n`));
+
+  await maybePromptFamilySetup();
 }
 
 async function runUpgrade({ config, serverName, deepServerName, firstName, memoryPath, hasDeepDir, hasDeepMCP, hasConfig, configPath }) {
@@ -409,6 +428,8 @@ async function runUpgrade({ config, serverName, deepServerName, firstName, memor
   console.log('');
   console.log(chalk.bold.green('✅  Upgrade complete!\n'));
   console.log(chalk.dim('Restart Claude Desktop to activate the new deep context server.\n'));
+
+  await maybePromptFamilySetup();
 }
 
 async function runMachine2Setup({ config, serverName, deepServerName, firstName, memoryPath, configPath, userConfig }) {
@@ -443,6 +464,8 @@ async function runMachine2Setup({ config, serverName, deepServerName, firstName,
   console.log(`  1. Fully quit Claude Desktop  ${chalk.dim('(Cmd+Q)')}`);
   console.log('  2. Relaunch Claude Desktop');
   console.log(`  3. Your existing memories and deep context will be available immediately via ${chalk.cyan(serverName)}\n`);
+
+  await maybePromptFamilySetup();
 }
 
 // ─── config questionnaire ────────────────────────────────────────────────────
@@ -487,6 +510,114 @@ function readUserConfig(configPath) {
   if (!fs.existsSync(configPath)) return null;
   try { return JSON.parse(fs.readFileSync(configPath, 'utf8')); }
   catch { return null; }
+}
+
+// ─── family memory ───────────────────────────────────────────────────────────
+
+async function maybePromptFamilySetup() {
+  if (isFamilyRoutingInstalled()) return;
+
+  console.log('');
+  const { wantFamily } = await inquirer.prompt([{
+    type: 'confirm', name: 'wantFamily',
+    message: 'Do you share an iCloud folder with family members for common docs (insurance, house, etc.)?',
+    default: false
+  }]);
+  if (!wantFamily) return;
+
+  await runFamilySetup();
+}
+
+async function runFamilySetup() {
+  const { sharedRoot } = await inquirer.prompt([{
+    type: 'input', name: 'sharedRoot',
+    message: 'Absolute path to the shared family iCloud folder:',
+    default: path.join(ICLOUD_BASE, 'Kennedy Family Docs'),
+    validate: v => fs.existsSync(v.trim()) || 'Path not found — make sure iCloud has synced this folder to this Mac first'
+  }]);
+
+  const familyRoot = path.join(sharedRoot.trim(), FAMILY_MEMORY_SUBPATH);
+
+  console.log('');
+  step('1. Creating Family Memory folder...         ', () => fs.mkdirSync(familyRoot, { recursive: true }));
+  step('2. Deploying templates (no clobber)...      ', () => deployFamilyTemplates(familyRoot));
+  step('3. Pinning folder (Keep Downloaded)...      ', () => pinToICloud(familyRoot));
+  step('4. Installing routing block in ~/.claude/...', () => installFamilyRoutingBlock());
+
+  console.log('');
+  console.log(chalk.bold.green('✅  Family memory ready.\n'));
+  console.log(chalk.bold('What this did:'));
+  console.log(`  • Deployed templates to ${chalk.cyan(familyRoot)}`);
+  console.log('  • Added a family-memory routing block to ~/.claude/CLAUDE.md');
+  console.log('  • Left any existing files in the shared folder untouched\n');
+  console.log(chalk.bold('Next steps:'));
+  console.log('  1. Open that folder in Finder; populate FAMILY_MEMORY.md as facts accumulate');
+  console.log(`  2. On your partner's Macs, run ${chalk.cyan('npx setup-claude-memory --family')} to install the routing block there too\n`);
+}
+
+function deployFamilyTemplates(destDir) {
+  const tplDir = path.join(__dirname, '..', 'templates', 'family-memory');
+  if (!fs.existsSync(tplDir)) throw new Error(`Templates missing at ${tplDir} — reinstall the package`);
+
+  for (const f of fs.readdirSync(tplDir)) {
+    const src = path.join(tplDir, f);
+    const dst = path.join(destDir, f);
+    if (fs.statSync(src).isDirectory()) {
+      fs.mkdirSync(dst, { recursive: true });
+      continue;
+    }
+    if (fs.existsSync(dst)) continue; // never clobber user edits
+    const rendered = renderFamilyTemplate(fs.readFileSync(src, 'utf8'));
+    fs.writeFileSync(dst, rendered, 'utf8');
+  }
+
+  // Always ensure these subdirs exist, even if they weren't in the template
+  for (const sub of ['pdf-cache', 'changelog-archive']) {
+    fs.mkdirSync(path.join(destDir, sub), { recursive: true });
+  }
+}
+
+function renderFamilyTemplate(body) {
+  const today = new Date().toISOString().slice(0, 10);
+  const username = (os.userInfo().username || 'user');
+  const cliVersion = require('../package.json').version;
+  return body
+    .replace(/\{\{INSTALL_DATE\}\}/g, today)
+    .replace(/\{\{INSTALL_USER\}\}/g, username)
+    .replace(/\{\{CLI_VERSION\}\}/g, cliVersion);
+  // {{FAMILY_NAME}} intentionally left as a placeholder so the user personalizes it.
+}
+
+function isFamilyRoutingInstalled() {
+  if (!fs.existsSync(CLAUDE_MD_PATH)) return false;
+  try {
+    return fs.readFileSync(CLAUDE_MD_PATH, 'utf8').includes(FAMILY_ROUTING_MARKER_OPEN);
+  } catch { return false; }
+}
+
+function installFamilyRoutingBlock() {
+  if (isFamilyRoutingInstalled()) return; // idempotent
+
+  // Read the canonical block from the shipped template, not a duplicated literal
+  const tplPath = path.join(__dirname, '..', 'templates', 'family-memory', 'ROUTING.md');
+  if (!fs.existsSync(tplPath)) throw new Error('ROUTING.md template missing');
+  const full = fs.readFileSync(tplPath, 'utf8');
+
+  const openIdx  = full.indexOf(FAMILY_ROUTING_MARKER_OPEN);
+  const closeIdx = full.indexOf(FAMILY_ROUTING_MARKER_CLOSE);
+  if (openIdx === -1 || closeIdx === -1) throw new Error('ROUTING.md template missing magic markers');
+  const block = full.slice(openIdx, closeIdx + FAMILY_ROUTING_MARKER_CLOSE.length);
+
+  // ~/.claude/CLAUDE.md may be a symlink to iCloud (setupClaudeMd creates it
+  // that way). Writing through the symlink updates the iCloud target — fine.
+  fs.mkdirSync(CLAUDE_MD_DIR, { recursive: true });
+  if (!fs.existsSync(CLAUDE_MD_PATH)) {
+    fs.writeFileSync(CLAUDE_MD_PATH, block + '\n', 'utf8');
+    return;
+  }
+  const current = fs.readFileSync(CLAUDE_MD_PATH, 'utf8');
+  const sep = current.length === 0 || current.endsWith('\n') ? '\n' : '\n\n';
+  fs.appendFileSync(CLAUDE_MD_PATH, sep + block + '\n', 'utf8');
 }
 
 // ─── run ─────────────────────────────────────────────────────────────────────

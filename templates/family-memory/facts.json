@@ -1,0 +1,26 @@
+{
+  "$schema": "./facts.schema.json",
+  "version": 1,
+  "last_modified": "{{INSTALL_DATE}}",
+  "last_modified_by": "{{INSTALL_USER}}",
+  "household": {
+    "members": ["Kam", "Tiera"],
+    "location": "Franklin, TN",
+    "pets": []
+  },
+  "insurance": {
+    "health": [],
+    "auto": [],
+    "home": [],
+    "life": []
+  },
+  "house": {},
+  "vehicles": [],
+  "finances": {
+    "recurring_bills": []
+  },
+  "contacts": [],
+  "travel": {
+    "passports": {}
+  }
+}

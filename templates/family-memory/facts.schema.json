@@ -1,0 +1,148 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Family Memory Facts",
+  "description": "Structured quick-lookup facts for family memory. Paired with FAMILY_MEMORY.md (narrative) and pdf-index.md (document catalog). Never store SSNs, driver license numbers, or full account numbers here.",
+  "type": "object",
+  "required": ["version", "last_modified", "household"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "integer", "minimum": 1 },
+    "last_modified": { "type": "string", "format": "date" },
+    "last_modified_by": { "type": "string" },
+    "household": {
+      "type": "object",
+      "properties": {
+        "members": { "type": "array", "items": { "type": "string" } },
+        "location": { "type": "string" },
+        "pets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "species": { "type": "string" },
+              "breed": { "type": "string" },
+              "dob": { "type": "string" },
+              "vet": { "type": "string" }
+            },
+            "required": ["name", "species"]
+          }
+        }
+      }
+    },
+    "insurance": {
+      "type": "object",
+      "properties": {
+        "health": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "plan_name": { "type": "string" },
+              "carrier": { "type": "string" },
+              "effective_date": { "type": "string" },
+              "individual_deductible": { "type": "string" },
+              "family_deductible": { "type": "string" },
+              "individual_oop_max": { "type": "string" },
+              "family_oop_max": { "type": "string" },
+              "pcp_copay": { "type": "string" },
+              "specialist_copay": { "type": "string" },
+              "network_name": { "type": "string" },
+              "claim_phone": { "type": "string" },
+              "member_services_phone": { "type": "string" },
+              "group_number": { "type": "string" },
+              "covered_members": { "type": "array", "items": { "type": "string" } },
+              "source_pdf": { "type": "string", "description": "Absolute or relative path to source PDF" },
+              "notes": { "type": "string" }
+            },
+            "required": ["plan_name", "carrier", "effective_date"]
+          }
+        },
+        "auto": { "type": "array", "items": { "type": "object" } },
+        "home": { "type": "array", "items": { "type": "object" } },
+        "life": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "house": {
+      "type": "object",
+      "properties": {
+        "address": { "type": "string" },
+        "purchased": { "type": "string" },
+        "utilities": {
+          "type": "object",
+          "properties": {
+            "electric": { "type": "string" },
+            "gas": { "type": "string" },
+            "water": { "type": "string" },
+            "internet": { "type": "string" },
+            "trash": { "type": "string" }
+          }
+        }
+      }
+    },
+    "vehicles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "nickname": { "type": "string" },
+          "year": { "type": "integer" },
+          "make": { "type": "string" },
+          "model": { "type": "string" },
+          "vin_last4": { "type": "string" },
+          "primary_driver": { "type": "string" },
+          "insurance_policy_ref": { "type": "string" }
+        }
+      }
+    },
+    "finances": {
+      "type": "object",
+      "properties": {
+        "recurring_bills": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "amount": { "type": "string" },
+              "cadence": { "type": "string" },
+              "payer": { "type": "string" },
+              "notes": { "type": "string" }
+            },
+            "required": ["name", "cadence"]
+          }
+        }
+      }
+    },
+    "contacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "role": { "type": "string" },
+          "phone": { "type": "string" },
+          "email": { "type": "string" },
+          "address": { "type": "string" },
+          "notes": { "type": "string" }
+        },
+        "required": ["name", "role"]
+      }
+    },
+    "travel": {
+      "type": "object",
+      "properties": {
+        "passports": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "expiration": { "type": "string" },
+              "notes": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

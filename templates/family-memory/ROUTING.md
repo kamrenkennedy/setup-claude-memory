@@ -5,19 +5,19 @@ This is the canonical routing protocol for family memory. Every Claude session t
 ---
 
 <!-- family-memory-routing v1 -->
-## Family Memory (Kam + Tiera)
+## Family Memory
 
 For ANY family-related topic — health insurance, house, vehicles, pets, shared finances, wedding/anniversary, shared contacts, family calendar, joint travel, home maintenance — BEFORE answering:
 
-1. Read `~/Library/Mobile Documents/com~apple~CloudDocs/Kennedy Family Docs/Claude/Family Memory/FAMILY_MEMORY.md` for the current state of shared facts
-2. Read `.../Family Memory/changelog.md` to see what was added/changed since your last session (the other person may have updated it)
-3. If the question is about a specific document (insurance plan, warranty, deed, vehicle title), consult `.../Family Memory/pdf-index.md` first, then use the `anthropic-skills:pdf` skill to open the file on demand
-4. For structured lookups (deductibles, plan IDs, claim phones), check `.../Family Memory/facts.json`
+1. Read `{{FAMILY_ROOT}}/FAMILY_MEMORY.md` for the current state of shared facts
+2. Read `{{FAMILY_ROOT}}/changelog.md` to see what was added/changed since your last session (another family member may have updated it)
+3. If the question is about a specific document (insurance plan, warranty, deed, vehicle title), consult `{{FAMILY_ROOT}}/pdf-index.md` first, then use the `anthropic-skills:pdf` skill to open the file on demand
+4. For structured lookups (deductibles, plan IDs, claim phones), check `{{FAMILY_ROOT}}/facts.json`
 
 ### Family Memory Session Wrap
 
 If this session added or modified any family facts:
-- Append a timestamped entry to `changelog.md` (append-only — never delete past entries). ISO timestamp format `YYYY-MM-DDTHH:MM`. Sign with initials (KK = Kam, TK = Tiera).
+- Append a timestamped entry to `changelog.md` (append-only — never delete past entries). ISO timestamp format `YYYY-MM-DDTHH:MM`. Sign with your initials (see the initials convention in `FAMILY_MEMORY.md`).
 - Update the relevant `## Section` in `FAMILY_MEMORY.md` surgically (one section at a time, never rewrite the whole file).
 - If a PDF was parsed, cache the extracted text to `pdf-cache/{filename}.txt`.
 - Update the `last_modified` field in `facts.json` if facts were added/changed.

@@ -3,7 +3,7 @@
 
 # Family Memory — {{FAMILY_NAME}}
 
-This is the authoritative shared memory for family facts. Both Kam and Tiera's Claude sessions read from this file for any family-related topic.
+This is the authoritative shared memory for family facts. Every family member's Claude sessions read from this file for any family-related topic.
 
 **Write discipline:** edit one `## Section` at a time (never rewrite the whole file). Append new facts to the relevant section. Surgical edits only. Before editing, check the `Last Modified` line above and warn if it changed mid-session. Log every meaningful change to `changelog.md` (append-only).
 
@@ -11,10 +11,10 @@ This is the authoritative shared memory for family facts. Both Kam and Tiera's C
 
 ## Household
 
-- **Members:** Kam, Tiera
-- **Location:** Franklin, Tennessee
+- **Members:** _(add each household member)_
+- **Location:** _(add city, state)_
 - **Pets:** _(none recorded — update as needed)_
-- **Initials convention (changelog signatures):** KK = Kam, TK = Tiera
+- **Initials convention (changelog signatures):** _(e.g. AB = Alex Brown — one per member, used to sign changelog entries)_
 
 ## Insurance
 

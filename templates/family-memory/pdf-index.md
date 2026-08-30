@@ -1,6 +1,6 @@
 # Family Memory PDF Index
 
-One-line summary per PDF stored anywhere inside `Kennedy Family Docs/`. Use this to decide which PDF to open on-demand (via the `anthropic-skills:pdf` skill) when answering a family question.
+One-line summary per PDF stored anywhere inside the shared family folder. Use this to decide which PDF to open on-demand (via the `anthropic-skills:pdf` skill) when answering a family question.
 
 **Discipline:**
 - One entry per PDF. Format: `**Filename** — <one-line summary>. Path: <absolute path>.`

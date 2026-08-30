@@ -540,9 +540,9 @@ async function runFamilySetup() {
 
   console.log('');
   step('1. Creating Family Memory folder...         ', () => fs.mkdirSync(familyRoot, { recursive: true }));
-  step('2. Deploying templates (no clobber)...      ', () => deployFamilyTemplates(familyRoot));
+  step('2. Deploying templates (no clobber)...      ', () => deployFamilyTemplates(familyRoot, familyRoot));
   step('3. Pinning folder (Keep Downloaded)...      ', () => pinToICloud(familyRoot));
-  step('4. Installing routing block in ~/.claude/...', () => installFamilyRoutingBlock());
+  step('4. Installing routing block in ~/.claude/...', () => installFamilyRoutingBlock(familyRoot));
 
   console.log('');
   console.log(chalk.bold.green('✅  Family memory ready.\n'));
@@ -555,7 +555,7 @@ async function runFamilySetup() {
   console.log(`  2. On your partner's Macs, run ${chalk.cyan('npx setup-claude-memory --family')} to install the routing block there too\n`);
 }
 
-function deployFamilyTemplates(destDir) {
+function deployFamilyTemplates(destDir, familyRoot) {
   const tplDir = path.join(__dirname, '..', 'templates', 'family-memory');
   if (!fs.existsSync(tplDir)) throw new Error(`Templates missing at ${tplDir} — reinstall the package`);
 
@@ -567,7 +567,7 @@ function deployFamilyTemplates(destDir) {
       continue;
     }
     if (fs.existsSync(dst)) continue; // never clobber user edits
-    const rendered = renderFamilyTemplate(fs.readFileSync(src, 'utf8'));
+    const rendered = renderFamilyTemplate(fs.readFileSync(src, 'utf8'), familyRoot);
     fs.writeFileSync(dst, rendered, 'utf8');
   }
 
@@ -577,14 +577,16 @@ function deployFamilyTemplates(destDir) {
   }
 }
 
-function renderFamilyTemplate(body) {
+function renderFamilyTemplate(body, familyRoot) {
   const today = new Date().toISOString().slice(0, 10);
   const username = (os.userInfo().username || 'user');
   const cliVersion = require('../package.json').version;
   return body
     .replace(/\{\{INSTALL_DATE\}\}/g, today)
     .replace(/\{\{INSTALL_USER\}\}/g, username)
-    .replace(/\{\{CLI_VERSION\}\}/g, cliVersion);
+    .replace(/\{\{CLI_VERSION\}\}/g, cliVersion)
+    .replace(/\{\{FAMILY_ROOT\}\}/g, familyRoot)
+    .replace(/\{\{INSTALL_TIME\}\}/g, new Date().toISOString().slice(11, 16));
   // {{FAMILY_NAME}} intentionally left as a placeholder so the user personalizes it.
 }
 
@@ -595,7 +597,7 @@ function isFamilyRoutingInstalled() {
   } catch { return false; }
 }
 
-function installFamilyRoutingBlock() {
+function installFamilyRoutingBlock(familyRoot) {
   if (isFamilyRoutingInstalled()) return; // idempotent
 
   // Read the canonical block from the shipped template, not a duplicated literal
@@ -606,7 +608,9 @@ function installFamilyRoutingBlock() {
   const openIdx  = full.indexOf(FAMILY_ROUTING_MARKER_OPEN);
   const closeIdx = full.indexOf(FAMILY_ROUTING_MARKER_CLOSE);
   if (openIdx === -1 || closeIdx === -1) throw new Error('ROUTING.md template missing magic markers');
-  const block = full.slice(openIdx, closeIdx + FAMILY_ROUTING_MARKER_CLOSE.length);
+  // Render placeholders — the block is written into ~/.claude/CLAUDE.md verbatim,
+  // so an unrendered {{FAMILY_ROOT}} would leave every session with a dead path.
+  const block = renderFamilyTemplate(full.slice(openIdx, closeIdx + FAMILY_ROUTING_MARKER_CLOSE.length), familyRoot);
 
   // ~/.claude/CLAUDE.md may be a symlink to iCloud (setupClaudeMd creates it
   // that way). Writing through the symlink updates the iCloud target — fine.

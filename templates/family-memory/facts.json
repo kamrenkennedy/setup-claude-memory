@@ -4,8 +4,8 @@
   "last_modified": "{{INSTALL_DATE}}",
   "last_modified_by": "{{INSTALL_USER}}",
   "household": {
-    "members": ["Kam", "Tiera"],
-    "location": "Franklin, TN",
+    "members": [],
+    "location": "",
     "pets": []
   },
   "insurance": {

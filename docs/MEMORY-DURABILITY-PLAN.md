@@ -26,6 +26,59 @@ hand-wired Claude Code and Codex. Her upgrade is genuinely just "run the updater
 
 ---
 
+## Family memory and Cowork — both verified out of scope (2026-08-30)
+
+Two questions from Kam, both answered by inspection rather than assumption.
+
+### Family memory is a different system and the migration does not touch it
+
+| | Personal memory | Family memory |
+|---|---|---|
+| What | `memory.jsonl`, `deep/` | `FAMILY_MEMORY.md`, `changelog.md`, `facts.json` |
+| Where | `com~apple~CloudDocs/Claude Memory/` | `com~apple~CloudDocs/Kennedy Family Docs/Claude/Family Memory/` |
+| Read by | **MCP servers** (`aim_memory_*`, `aim_deep_*`) | **Claude's direct file access**, via the routing block in `~/.claude/CLAUDE.md` |
+| Path set by | `--memory-path` | the routing block's literal path |
+| Shared? | no — one person | **yes** — shared iCloud folder across two separate iCloud accounts |
+
+Only the left column moves. Confirmed on disk by Cowork's own allowlist:
+`localAgentModeTrustedFolders` contains `Kennedy Family Docs` (that is how the agent reads family
+memory directly) and does **not** contain `Claude Memory` (it never needs to — MCP servers read that
+as subprocesses, outside the agent's file tools).
+
+**Recommendation: leave family memory on the shared iCloud folder.** That shared folder is precisely
+what lets it work across two separate iCloud accounts with neither person needing an account on the
+other's services. Putting it in git would force GitHub and git literacy onto Tiera for the one
+system that has to work for both of them. Write frequency is low (family facts change rarely, unlike
+per-session project memory), and the existing discipline already handles concurrency: `changelog.md`
+is append-only, `FAMILY_MEMORY.md` is edited one `## Section` at a time.
+
+**Optional, no cost to Tiera:** Kam's Mac can mirror the family folder into his private repo on a
+schedule — a read-only backup that buys version history and recoverability. iCloud stays the live
+path; Tiera never sees a git command.
+
+**Naming trap:** `memory-family.jsonl` inside `Claude Memory/` is **not** the shared family memory.
+It is Kam's *personal* AIM context database (`--context family`), visible only to him. It moves with
+the migration. The shared family memory is the markdown folder above.
+
+**Also verified:** `~/.claude/CLAUDE.md` is a symlink to
+`Kennedy Family Docs/Claude/CLAUDE.md` — the family folder, **not** the store. The migration does
+not disturb the global instructions.
+
+### Cowork is not a separate config surface
+
+Cowork is not a separate app — it runs inside `Claude.app` and reads the same
+`claude_desktop_config.json`, where `mcpServers` is a top-level key. So Cowork uses the same memory
+servers as Claude Desktop. Update that one file and Cowork follows. **The "Tiera has one config
+surface" conclusion holds.**
+
+Memory reaches Cowork through MCP servers, which run as subprocesses and are *not* gated by
+`localAgentModeTrustedFolders`. That is why `Claude Memory` is absent from that list and memory
+still works.
+
+*Caveat, not a blocker:* if Kam ever wants Cowork's agent to read the memory **files** directly
+rather than through MCP after the move, add `~/Developer/claude-memory` to trusted folders. Not
+needed for normal operation.
+
 ## Phase 0 — Safety and hygiene (no decisions needed)
 
 1. ✅ **DONE — GitHub exposure check.** No memory repo exists on GitHub, public or private. Memory
@@ -148,6 +201,8 @@ Either way it ships through the installer + Fort Abode. She should never see a g
    it is also switchable session-by-session rather than all at once.
 5. Phase 3
 6. Phase 4 after the Tiera question is answered
+
+Family memory stays on shared iCloud throughout — it is not part of any phase.
 
 Deferred and still needing explicit go-ahead: condensing the `Content_Strategy_App` durable core
 (a rewrite of wording, not a move).

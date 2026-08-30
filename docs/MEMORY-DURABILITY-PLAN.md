@@ -11,10 +11,24 @@ and `memory-durability-claude-md-modernization-2026-08-30`.
 Two upgrades were being discussed as one thing. They are separable, and they have very
 different value for each person:
 
-| | What it fixes | Who needs it | Git required |
+| | What it fixes | Who gets it | Git required |
 |---|---|---|---|
-| **A. Search-first reads** | The overflow. A lookup returns matching observations, not a 411K entity. | **Kam AND Tiera** | No |
-| **B. Git durability** | Silent divergence between machines, off-iCloud reach, cloud sessions. | **Kam** (Tiera: only if she has 2 Macs / wants cloud sessions) | Yes |
+| **A. Search-first reads** | The overflow. A lookup returns matching observations, not a 411K entity. | **Both** | No |
+| **B. Git durability** | Silent divergence between machines, off-iCloud reach, cloud sessions, version history. | **Both** — Kam's decision 2026-08-30, full parity | Yes |
+
+**Kam's ruling on B (2026-08-30):** Tiera gets the same system Kam does — her own private repo on
+**her** GitHub account. An earlier draft proposed giving her scheduled local snapshots instead,
+because she is not a developer. Kam heard that and reaffirmed parity. That is the decision; the
+concern is closed.
+
+It is also the better design, for a reason the earlier draft under-weighted: **two divergent designs
+cost more to maintain than one**, and symmetry means she is already set up the day she gets a second
+machine or wants cloud sessions.
+
+**The consequence that reshapes this plan:** if Tiera gets the same thing, the migration cannot be a
+set of commands run by hand on Kam's Mac. **It has to be a feature in `setup.js`** — which makes
+Kam's own migration the feature's first run rather than a one-off. That is better engineering
+regardless: reproducible, testable, and re-runnable on any future machine.
 
 **A is the actual fix and it needs no git at all.** `bin/setup.js:501` — `kgEntry()` is a single
 function returning the memory server's command line. Swap `mcp-knowledge-graph` for our own server
@@ -112,7 +126,7 @@ Fort Abode checklist applies (CLAUDE.md → Shipping through Fort Abode). This i
 needs `component-registry.json` copy + a `whats-new.json` entry — and the pending `--family` copy
 fix can ride along.
 
-## Phase 2 — Kam's git migration (needs Kam's go)
+## Phase 2 — Git-backed memory, built as an installer feature (needs Kam's go)
 
 **Revised 2026-08-30: do this AFTER Phase 1 has settled, not in the same sitting.** The earlier
 "do them together to share one config edit" advice was optimizing ~5 minutes of work. Kam is doing
@@ -151,45 +165,92 @@ replace the symlink with the hard-fail tripwire.
 **Note:** neither server writes atomically today — a crash mid-write truncates the store. The
 vendored server in Phase 1 should fix that (`mkstemp` + `os.replace`, `chmod 0644`).
 
-### Steps
+### What the feature has to do — `npx setup-claude-memory --git`
 
-1. `~/Developer/claude-memory` as the working copy — outside iCloud and Dropbox (both corrupt git:
-   iCloud on `.git` internals, Dropbox on mtimes; both documented traps).
-2. Copy the store in; `.gitignore` the backups and `.DS_Store`.
-3. **Pre-push secret scan before the first push ever happens.** Non-negotiable: the store carries
-   phone numbers, live prod D1 invite codes, emails, UUIDs, and `memory-family.jsonl`.
-4. Create the **private** repo on Kam's account; push.
-5. Cut all 14 `--memory-path` references across the 4 files to the new path.
-6. **Tripwire:** replace `memory.jsonl` at the old iCloud path with a *directory* of that name. Any
-   machine left behind fails loudly instead of silently writing to a ghost store — and iCloud
-   delivers that tripwire to every Mac by itself.
-7. Verify every MCP server comes up on the new path before closing the session.
+Everything below runs for whoever is running it, against **their own** GitHub account. Nobody ever
+types a git command.
+
+1. **Pick a safe repo location, and refuse unsafe ones.** Must not be inside iCloud, Dropbox,
+   `~/Documents`, or `~/Desktop`. ⚠️ **`~/Documents` and `~/Desktop` are iCloud-synced whenever
+   "Desktop & Documents Folders" is enabled — verified ON on Kam's Mac 2026-08-30**, and it is a
+   common default, so assume Tiera has it too. Home root is not synced. Default: `~/ClaudeMemory`
+   for a general user; Kam may pick `~/Developer/claude-memory` to sit with his other repos. The
+   installer must *detect* the unsafe cases rather than trusting the default.
+2. **Ensure `gh` and authenticate.** `gh auth login`'s browser flow is the friendliest path — it
+   shows a code, opens the browser, the user clicks authorize. If `gh` is missing, guide the
+   install (Kam has it via homebrew; Tiera likely has neither, so fall back to the official
+   installer package rather than assuming brew).
+3. **Move the store in**, `.gitignore` the `*.bak-*` / `backup-*` files and `.DS_Store`.
+4. **Secret-scan gate before the first push ever happens.** Non-negotiable — the store carries phone
+   numbers, live prod invite codes, emails, UUIDs, and `memory-family.jsonl`. The push does not
+   happen if the scan trips; it reports and stops.
+5. **Create the PRIVATE repo on the running user's account**, push.
+6. **Install the semantic merge driver** (below) plus `.gitattributes`, so a conflict never reaches
+   the user.
+7. **Rewrite the config surfaces** it owns, and *report* any it does not own so Kam can cut his
+   three extra ones by hand.
+8. **Leave the directory-symlink bridge** at the old path for the gradual cutover; replace it with
+   the hard-fail tripwire once every session is on the new path.
+9. **Schedule background sync** — periodic pull-rebase-push. Silent when clean.
+
+### The merge driver — this is what makes git safe for a non-developer
+
+A merge conflict Tiera cannot clear equals broken memory. So conflicts must resolve themselves
+**correctly**, not merely automatically.
+
+`git merge=union` is *not* good enough here: `memory.jsonl` is one JSON object per line, so a union
+merge of two edits to the same entity yields **two lines with the same entity name** — a corrupted
+graph. It needs a semantic driver instead:
+
+- Parse base, ours, theirs as JSONL.
+- **Entities** key by `name`; **relations** key by `(from, to, relationType)`.
+- Proper 3-way set semantics per entity's `observations`: start from the union of ours and theirs,
+  then drop anything that is present in base but was deliberately removed on either side. That
+  preserves genuine archival moves (remove from A, add to B) instead of resurrecting them.
+- Emit in a deterministic order.
+- `deep/` documents are write-once with unique ids, so they cannot conflict. `deep/index.json` is
+  derivable — on conflict, union by id or regenerate via `aim_deep_reindex`.
+
+This driver is also what makes concurrent multi-session writing *safe* rather than merely loud,
+which is the deeper win over the current last-write-wins file.
 
 Any step touching `memory.jsonl` follows the live-store discipline in CLAUDE.md (snapshot + md5,
 verify by content not index, byte-identical round-trip proof, `mkstemp` + `os.replace`, `chmod 0644`).
 
-## Phase 3 — Scheduled compaction (both)
+## Phase 3 — Kam runs it (the feature's first user)
+
+At a natural break, with the symlink bridge so his own cutover is session-by-session rather than
+all at once. He goes first deliberately: anything rough about the feature surfaces on his Mac, where
+he can debug it, not on Tiera's.
+
+Kam-specific: he owns **four** config surfaces, and the installer only rewrites the one it manages
+(`claude_desktop_config.json`). It must *report* the other three — `~/.claude.json`,
+`~/.codex/config.toml`, `App Projects/Persona — Content Studio/.codex/config.toml` — so he can cut
+them, and the symlink bridge keeps everything working until he does.
+
+## Phase 4 — Tiera onto the same system
+
+She runs the Phase 2 feature, delivered as a Fort Abode update. Her own GitHub account, her own
+private repo, her own memory. Identical to Kam's, with three differences that are facts about her
+setup rather than a reduced design:
+
+- **One config surface, written automatically.** `setup.js` writes `claude_desktop_config.json`,
+  which is also what Cowork reads. Kam's extra three exist only because he hand-wired Claude Code
+  and Codex.
+- **Repo location default** is a plain home-folder path, not `~/Developer`.
+- **`gh` is probably absent**, so the guided install matters more on her Mac than on Kam's.
+
+Her involvement: accept the update, click through a GitHub sign-in once. Nothing after that.
+
+**Family memory stays on shared iCloud** — that is a separate system on a separate path (see above),
+and the shared folder is what lets it span two iCloud accounts. Kam's side can additionally mirror it
+into his private repo on a schedule for version history, costing Tiera nothing.
+
+## Phase 5 — Scheduled compaction (both)
 
 Staged for per-item approval, `plaud-triage` style. This is what stops the regrowth that made four
 manual passes necessary in six weeks. Never a heroic manual pass. Nothing is ever deleted — moves go
 to an archive entity and stay recoverable.
-
-## Phase 4 — Tiera's durability (decide only after she is on Phase 1)
-
-Open question: **does Tiera have more than one Mac, or want cloud sessions?** That is the only thing
-git buys her, and it is what should decide this.
-
-- **If no** → she does not need git. Give her scheduled local snapshots instead: same "never
-  silently lose an edit" protection, no new concepts, nothing that can break in a way she cannot
-  self-service.
-- **If yes** → her own private repo on **her** GitHub account, and the sync must be **fully
-  automatic** (scheduled pull-rebase-push run by the installer). On conflict it snapshots and
-  alerts — it must never ask her to resolve a merge by hand. A merge conflict a non-developer
-  cannot clear equals broken memory.
-
-Either way it ships through the installer + Fort Abode. She should never see a git command.
-
----
 
 ## Order of work (revised 2026-08-30 for live-work safety)
 
@@ -197,10 +258,12 @@ Either way it ships through the installer + Fort Abode. She should never see a g
 2. Phase 0 item 3 — move the 6 backup files out
 3. **Phase 1 alone.** Ship it, then switch sessions over one at a time as they restart. Old and new
    coexist safely, so there is no deadline and no big-bang moment.
-4. **Phase 2** once Phase 1 has settled and Kam is at a natural break — with the symlink bridge, so
-   it is also switchable session-by-session rather than all at once.
-5. Phase 3
-6. Phase 4 after the Tiera question is answered
+4. **Phase 2** — build `--git` as a real installer feature, including the merge driver. Bigger than
+   the original hand-migration, and the price of parity.
+5. **Phase 3** — Kam runs it at a natural break, with the symlink bridge so his own cutover is also
+   session-by-session. He is the feature's first user; anything rough surfaces on his Mac, not hers.
+6. **Phase 4** — Tiera runs it via a Fort Abode update.
+7. **Phase 5** — scheduled compaction, both.
 
 Family memory stays on shared iCloud throughout — it is not part of any phase.
 

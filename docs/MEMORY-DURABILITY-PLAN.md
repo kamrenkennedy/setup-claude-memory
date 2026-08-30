@@ -148,6 +148,24 @@ silently capped.
 Migration is automatic — `setup.js` rewrites the server entry on every run, including the
 "nothing changed" path, which now reports the upgrade honestly instead of claiming nothing happened.
 
+### Fort Abode — registry fixed, WHAT'S NEW deliberately parked
+
+`component-registry.json` is **done and pushed** (`ebc5370`): its `claude_config` still wrote
+`npx -y mcp-knowledge-graph` into users' Claude configs, so a marketplace install would have handed
+out the old server and quietly undone this release. That was functional, not copy — hence the
+widened checklist item 7 in this repo's CLAUDE.md.
+
+**The `whats-new.json` entry is NOT staged, by Kam's decision (2026-08-30):** Fort Abode is due a
+complete rework — replicating the workflow proven on Persona — so no effort goes into it until then.
+The copy below is **approved** and should be dropped in whenever Fort Abode next ships (it is on
+3.12.1; whats-new's top entry is 3.12.1):
+
+> - Claude's memory stays fast as it grows — it now looks up just the facts it needs instead of
+>   loading everything it knows about a project, so long-running projects don't slow your
+>   conversations down.
+> - Your memory file is safer: if your Mac shuts down mid-save, memory can no longer be left
+>   half-written.
+
 ## Phase 2 — Git-backed memory, built as an installer feature (needs Kam's go)
 
 **Revised 2026-08-30: do this AFTER Phase 1 has settled, not in the same sitting.** The earlier

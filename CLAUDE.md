@@ -185,7 +185,12 @@ This package ships through Fort Abode Utility Central as a managed component. Fo
 4. Canonical version headers bumped, not just copied forward
 5. Upstream repo hygiene: CHANGELOG updated, releases/ folder populated, clean `git status`, tag pushed
 6. Never `git add -A` — always explicit filenames (avoids accidentally committing `.env`, `.tgz`, etc.)
-7. Update Fort Abode's `user_description` / `usage_instructions` in component-registry for user-visible features
+7. **Fort Abode `component-registry.json` — `claude_config` is FUNCTIONAL, not copy.** It defines the
+   actual MCP command Fort Abode writes into a user's Claude config on install. **Any change to how a
+   server is invoked (binary name, package, flags) MUST update `claude_config`**, or marketplace
+   installs keep getting the old server and silently lose the upgrade — this exact trap was caught,
+   unshipped, on 2026-08-30 (`ebc5370`). Update `user_description` / `usage_instructions` too, for
+   user-visible features. Pin `--package=...@latest` or npx may serve a stale cached copy forever.
 8. Add a user-facing entry to `FortAbodeUtilityCentral/Resources/whats-new.json` so users see the change in Fort Abode's WHAT'S NEW panel after auto-update
 9. `aim_memory_add_facts` on `Fort_Abode_Utility_Central` entity after shipping
 
@@ -242,9 +247,11 @@ observation convention already landed in global CLAUDE.md.
   corruption hazard). Then in order: gitignore/move backups → private repo + pre-push secret scan →
   search-first read server → scheduled compaction. Deep Context:
   `content-strategy-app-memory-hand-triage-executed-2026-08-30`.
-- **Open follow-ups (no urgency):** Fort Abode marketplace copy still doesn't mention `--family`
-  (logged 2026-04-14, defer to next Fort Abode bump). Tiera family-memory handoff still pending
-  (manual in-person step).
+- **Open follow-ups:** Tiera family-memory handoff still pending (manual in-person step). Fort Abode
+  has an orphaned branch `claude/laughing-leavitt-71a4fb`, 11 commits ahead, whose worktree points at
+  the old `/Users/kamrenkennedy/` username — review before pruning.
+  ~~Fort Abode copy doesn't mention `--family`~~ — **stale, closed 2026-08-30**: both fields already
+  describe family memory. Verified, not assumed.
 - **Last session (2026-08-30):** modernized this CLAUDE.md — durability track, store-touch
   discipline, config-surface map, 🟢🟡🔴 tiers. Caught this checkout sitting at April's `5a2d982`
   with uncommitted edits while remote had the 2026-05-06 refresh (`e3c790b`); merged by content,

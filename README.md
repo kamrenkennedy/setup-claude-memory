@@ -2,14 +2,14 @@
 
 > One-command setup for persistent Claude memory via iCloud — Mac only.
 
-Installs the [MCP Knowledge Graph Memory Server](https://github.com/modelcontextprotocol/servers) and connects it to your Claude Desktop app, with your memory file stored in iCloud so it syncs across all your Macs automatically.
+Installs an AIM knowledge-graph memory server and a long-form deep-context archive, and connects them to your Claude Desktop app. Your memory lives in iCloud so it syncs across all your Macs automatically.
 
 ---
 
 ## What it does
 
 1. Creates a `Claude Memory` folder in your iCloud Drive
-2. Adds the `mcp-knowledge-graph` server to your Claude Desktop config
+2. Adds the memory server and deep-context server to your Claude Desktop config
 3. Labels it with your name (e.g. `Alex-Memory`)
 4. Tells you exactly what to do next
 
@@ -70,6 +70,33 @@ npx setup-claude-memory --family
 ```
 
 The routing block is idempotent — re-running is safe. Templates never clobber existing files, so edits you make to `FAMILY_MEMORY.md` or `facts.json` stick.
+
+---
+
+## Search-first reads (v1.6.0+)
+
+Memory grows. Once a project entity reaches a few hundred observations, a naive lookup returns the
+*whole* entity and swallows the context window — the assistant then has less room to do the work you
+asked for.
+
+This package ships its own memory server, `aim-memory-server`, to stop that:
+
+- **`aim_memory_search` returns the matching observations, not the whole entity.** It also reports
+  how many matched versus how many it returned, so the assistant knows when to narrow the query.
+- **`aim_memory_get` returns the 30 most recent observations by default** and says how many older
+  ones it withheld. `full: true` still loads everything when you genuinely want it.
+- **Every response has a character budget.** Over budget, the server returns *fewer observations* —
+  it never cuts a response mid-JSON.
+- **Writes are atomic** (write-temp-then-rename), so an interrupted write cannot truncate your
+  memory file. File permissions are preserved.
+
+Measured against a real 981-observation entity: a search that previously returned ~809,000
+characters now returns ~13,000.
+
+It is a drop-in replacement for [`mcp-knowledge-graph`](https://github.com/shaneholloman/mcp-knowledge-graph)
+(MIT) — same tool names, same file format, same write semantics. **Existing memory files work
+unchanged, and upgrading is just re-running the installer.** Sessions already open keep the old
+server until they restart, which is safe: both read and write the same file in the same format.
 
 ---
 

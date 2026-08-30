@@ -216,10 +216,19 @@ async function main() {
 
       if (!doUpdate) {
         // Re-verify MCP entries are current and exit quietly
+        const wasLegacy = isLegacyMemoryEntry(config.mcpServers[serverName]);
         config.mcpServers[serverName]     = kgEntry(memoryPath);
         config.mcpServers[deepServerName] = deepEntry(memoryPath);
         saveClaudeConfig(config);
-        console.log(chalk.bold.green('\n✅  All good — nothing changed.\n'));
+        if (wasLegacy) {
+          console.log(chalk.bold.green('\n✅  Memory server upgraded to search-first reads.\n'));
+          console.log('  Searches now return matching observations instead of whole entities,');
+          console.log('  so a large memory can no longer flood a session. Your memory files are');
+          console.log('  unchanged — same format, same location.\n');
+          console.log(chalk.dim('  Restart Claude Desktop to pick it up. Sessions already running\n  keep the old server until they restart, which is safe.\n'));
+        } else {
+          console.log(chalk.bold.green('\n✅  All good — nothing changed.\n'));
+        }
         await maybePromptFamilySetup();
         return;
       }
@@ -499,7 +508,15 @@ async function runConfigQuestionnaire(configPath, firstName, isUpdate, prefix = 
 // ─── MCP config entry builders ───────────────────────────────────────────────
 
 function kgEntry(memoryPath) {
-  return { command: 'npx', args: ['-y', 'mcp-knowledge-graph', '--memory-path', memoryPath] };
+  // Our own search-first server (v1.6.0+). A drop-in for mcp-knowledge-graph —
+  // same tools, same file format — but a search returns matching observations
+  // instead of whole entities, and writes are atomic.
+  return { command: 'npx', args: ['-y', '--package=setup-claude-memory@latest', 'aim-memory-server', '--memory-path', memoryPath] };
+}
+
+// True when the configured memory server is the old third-party one.
+function isLegacyMemoryEntry(entry) {
+  return !!entry && Array.isArray(entry.args) && entry.args.includes('mcp-knowledge-graph');
 }
 
 function deepEntry(memoryPath) {

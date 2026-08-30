@@ -1,6 +1,6 @@
 {
   "name": "setup-claude-memory",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "Interactive CLI to set up Claude persistent memory via iCloud \u2014 knowledge graph with search-first reads + deep context archive with semantic search, powered by MCP",
   "bin": {
     "setup-claude-memory": "bin/setup.js",

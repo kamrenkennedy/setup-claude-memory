@@ -39,14 +39,31 @@ function saveClaudeConfig(config) {
 // Scan the Claude Desktop config for an existing knowledge graph server.
 // Returns { serverName, memoryPath } or null.
 function detectFromClaudeConfig(mcpServers) {
+  // Match BOTH the legacy third-party server and our own (v1.6.0+). Matching only
+  // 'mcp-knowledge-graph' meant that once a user upgraded, the installer stopped
+  // recognising their existing setup and re-ran as if this were a fresh machine.
+  const isMemoryServer = args =>
+    args.includes('mcp-knowledge-graph') || args.includes('aim-memory-server');
+
+  const candidates = [];
   for (const [key, val] of Object.entries(mcpServers)) {
-    if (!Array.isArray(val.args)) continue;
-    if (!val.args.includes('mcp-knowledge-graph')) continue;
+    if (!Array.isArray(val.args) || !isMemoryServer(val.args)) continue;
     const mpIdx = val.args.indexOf('--memory-path');
     if (mpIdx === -1 || !val.args[mpIdx + 1]) continue;
-    return { serverName: key, memoryPath: val.args[mpIdx + 1] };
+    candidates.push({ serverName: key, memoryPath: val.args[mpIdx + 1] });
   }
-  return null;
+  if (candidates.length === 0) return null;
+
+  // Skip entries whose name still contains an unresolved {{placeholder}} — those are
+  // broken installs, and adopting one would derive a first name of
+  // '{{user_input:DISPLAY_NAME}}' and write real servers under that garbage key.
+  return candidates.find(c => !c.serverName.includes('{{')) || candidates[0];
+}
+
+// Config entries left behind by a failed install: the server name still carries an
+// unresolved template placeholder, so they can never start.
+function findBrokenPlaceholderServers(mcpServers) {
+  return Object.keys(mcpServers).filter(k => k.includes('{{'));
 }
 
 function findExistingDeepServer(mcpServers) {
@@ -190,6 +207,24 @@ async function main() {
 
   // ── Scenario 1: Already configured on THIS machine ───────────────────────
   const existingLocal = detectFromClaudeConfig(config.mcpServers);
+
+  // Offer to clear out entries a failed install left behind. They can never start,
+  // so Claude shows a "Server disconnected" error for each one on every launch.
+  const broken = findBrokenPlaceholderServers(config.mcpServers);
+  if (broken.length) {
+    console.log(chalk.yellow(`\n⚠️  Found ${broken.length} broken server ${broken.length === 1 ? 'entry' : 'entries'} in your Claude config:\n`));
+    for (const k of broken) console.log(`  ${chalk.dim(k)}`);
+    console.log(chalk.dim('\n  The name still contains an unfilled placeholder, so these can never start —'));
+    console.log(chalk.dim('  Claude reports "Server disconnected" for each one every launch.\n'));
+    const { removeBroken } = await inquirer.prompt([{
+      type: 'confirm', name: 'removeBroken', message: 'Remove them?', default: true
+    }]);
+    if (removeBroken) {
+      for (const k of broken) delete config.mcpServers[k];
+      saveClaudeConfig(config);
+      console.log(chalk.green('  ✓ Removed.\n'));
+    }
+  }
 
   if (existingLocal) {
     const { serverName, memoryPath } = existingLocal;

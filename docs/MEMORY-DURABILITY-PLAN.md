@@ -105,7 +105,7 @@ needed for normal operation.
 3. **Move the 6 backup files** (`memory.jsonl.bak-*`, `backup-*`, ~8.6MB) out of the store folder
    before any repo exists.
 
-## Phase 1 — Search-first reads (ships to both; no git)
+## Phase 1 — Search-first reads ✅ BUILT 2026-08-30 (`3d3d858`), NOT YET PUBLISHED
 
 The permanent overflow fix. `mcp-knowledge-graph` is MIT, third-party, invoked via `npx -y`, so it
 cannot be patched durably in place — we vendor it.
@@ -125,6 +125,28 @@ cannot be patched durably in place — we vendor it.
 Fort Abode checklist applies (CLAUDE.md → Shipping through Fort Abode). This is user-visible, so it
 needs `component-registry.json` copy + a `whats-new.json` entry — and the pending `--family` copy
 fix can ride along.
+
+### What Phase 1 actually shipped
+
+`bin/memory-server.mjs` — a drop-in for `mcp-knowledge-graph` (MIT), same ten tool names, same JSONL
+format, same write semantics. Verified byte-identical round-trip against a copy of the real store.
+
+- `aim_memory_search` returns **matching observations**, plus counts of what it withheld. Measured on
+  the real 981-observation `Content_Strategy_App`: **~809,000 chars → ~13,400.**
+- `aim_memory_get` returns the 30 most recent observations and reports `omitted_older`.
+- Every response has a character budget that **reduces data and re-renders** rather than cutting the
+  string. A first pass truncated mid-JSON — unparseable output is worse than the flood. `full: true`
+  bypasses the budget outright; an escape hatch that silently caps is not one.
+- **Atomic writes** (`writeFile` temp + `rename`), resolving symlinks first so a directory-symlink
+  bridge is written *through*. **File mode preserved** — the 0600 stores must not widen to 0644.
+- `test/memory-server.test.mjs`: 28 assertions over real MCP stdio, generating its own fixture so
+  `npm test` needs no private data. Excluded from the npm publish by `files`.
+
+Two bugs the tests caught that review had not: the mid-JSON truncation above, and `full: true` being
+silently capped.
+
+Migration is automatic — `setup.js` rewrites the server entry on every run, including the
+"nothing changed" path, which now reports the upgrade honestly instead of claiming nothing happened.
 
 ## Phase 2 — Git-backed memory, built as an installer feature (needs Kam's go)
 
@@ -256,8 +278,10 @@ to an archive entity and stay recoverable.
 
 1. ✅ Phase 0 item 2 done — public templates stripped of household identity (`6e80264`)
 2. Phase 0 item 3 — move the 6 backup files out
-3. **Phase 1 alone.** Ship it, then switch sessions over one at a time as they restart. Old and new
-   coexist safely, so there is no deadline and no big-bang moment.
+3. ✅ **Phase 1 built** (`3d3d858`) — `bin/memory-server.mjs`, 28 passing tests, tarball smoke test
+   done. **Awaiting Kam's go on `npm publish`** (🔴 tier). After publishing: tag `v1.6.0`, verify
+   `npm view`, then Fort Abode registry copy + `whats-new.json` entry. Then switch sessions over one
+   at a time as they restart — old and new coexist safely, so there is no deadline.
 4. **Phase 2** — build `--git` as a real installer feature, including the merge driver. Bigger than
    the original hand-migration, and the price of parity.
 5. **Phase 3** — Kam runs it at a natural break, with the symlink bridge so his own cutover is also

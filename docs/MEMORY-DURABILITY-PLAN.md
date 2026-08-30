@@ -61,8 +61,44 @@ fix can ride along.
 
 ## Phase 2 — Kam's git migration (needs Kam's go)
 
-**Do this in the same sitting as Phase 1**, because both edit the same 4 config surfaces. Doing
-them together is one cutover instead of two.
+**Revised 2026-08-30: do this AFTER Phase 1 has settled, not in the same sitting.** The earlier
+"do them together to share one config edit" advice was optimizing ~5 minutes of work. Kam is doing
+live memory-backed work and wants to switch sessions over gradually, and that constraint wins:
+Phase 1 is gradual for free, Phase 2 is not. Do not couple a safe change to a risky one.
+
+### Why the two phases behave differently
+
+- **Phase 1 is inherently zero-downtime.** The new server reads the *same file at the same path*.
+  Old server and new server are interchangeable at any instant — a running session keeps its
+  existing server process, and the next session started picks up the new one. They can coexist
+  indefinitely. No deadline, no coordination, nothing to undo.
+- **Phase 2 cannot be gradual by default.** Two paths means two files means silent divergence —
+  precisely the failure this whole track exists to eliminate.
+
+### The bridge that makes Phase 2 switchable too — VERIFIED 2026-08-30
+
+Leave a **directory symlink** at the old iCloud path pointing at `~/Developer/claude-memory`.
+Sessions on the old path and sessions on the new path then resolve to the same real file, so config
+surfaces can be cut over lazily, one session at a time.
+
+Verified empirically, not assumed:
+- `mcp-knowledge-graph` saves with a plain `fs.writeFile` (its `dist/index.js:171`) — no
+  temp-file-plus-rename — so writes follow the symlink through to the target.
+  `bin/deep-context-server.mjs` likewise uses plain `writeFileSync`.
+- Live test in the real iCloud Drive: created a directory symlink there, read through it, wrote
+  through it with `fs.writeFile`, confirmed the bytes landed in the true target and the symlink was
+  **not** replaced. Test artifacts removed.
+- **Use a DIRECTORY symlink, never a file symlink.** A directory symlink survives any write style,
+  including a future temp+rename, because the rename then happens inside the real target directory.
+
+Sequence with the bridge: move the store → create the symlink → everything keeps working on the old
+path → cut the 4 config surfaces whenever convenient → once every session is on the new path,
+replace the symlink with the hard-fail tripwire.
+
+**Note:** neither server writes atomically today — a crash mid-write truncates the store. The
+vendored server in Phase 1 should fix that (`mkstemp` + `os.replace`, `chmod 0644`).
+
+### Steps
 
 1. `~/Developer/claude-memory` as the working copy — outside iCloud and Dropbox (both corrupt git:
    iCloud on `.git` internals, Dropbox on mtimes; both documented traps).
@@ -102,12 +138,16 @@ Either way it ships through the installer + Fort Abode. She should never see a g
 
 ---
 
-## Order of work
+## Order of work (revised 2026-08-30 for live-work safety)
 
-1. Phase 0 items 2–3 (small, no decisions)
-2. **Phase 1 + Phase 2 together** in one sitting — shared config cutover
-3. Phase 3
-4. Phase 4 after the Tiera question is answered
+1. ✅ Phase 0 item 2 done — public templates stripped of household identity (`6e80264`)
+2. Phase 0 item 3 — move the 6 backup files out
+3. **Phase 1 alone.** Ship it, then switch sessions over one at a time as they restart. Old and new
+   coexist safely, so there is no deadline and no big-bang moment.
+4. **Phase 2** once Phase 1 has settled and Kam is at a natural break — with the symlink bridge, so
+   it is also switchable session-by-session rather than all at once.
+5. Phase 3
+6. Phase 4 after the Tiera question is answered
 
 Deferred and still needing explicit go-ahead: condensing the `Content_Strategy_App` durable core
 (a rewrite of wording, not a move).

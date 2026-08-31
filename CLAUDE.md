@@ -12,7 +12,7 @@ Project CLAUDE.md. Read this alongside Kam's global CLAUDE.md at `~/.claude/CLAU
 4. **Multi-user support** — Tiera (Kam's wife) runs the same CLI, gets her own personalized `Tiera-Memory` / `Tiera-Deep-Context` servers on her own iCloud account
 5. **Family memory layer** (v1.5.0+) — shared memory in `Kennedy Family Docs/Claude/Family Memory/` that both their Claudes read for family topics
 
-Published to npm as [`setup-claude-memory`](https://www.npmjs.com/package/setup-claude-memory). Users run `npx setup-claude-memory` — no install needed.
+Published to npm as [`setup-claude-memory`](https://www.npmjs.com/package/setup-claude-memory). Users run `npx setup-claude-memory@latest` — no install needed. **The `@latest` is not optional; see the npx-cache trap below.**
 
 ## Tool Catalog
 
@@ -53,7 +53,7 @@ Multi-user model: each user's Claude memory writes to their own iCloud account (
 
 ## Cross-Machine Considerations
 
-**Personal memory syncs automatically via iCloud.** Add a Mac → run `npx setup-claude-memory` → it detects the existing `config.json` on iCloud (reads `first_name`), skips the full setup, and registers the MCP servers in Claude Desktop's config on the new machine. iCloud folder is pinned to disk via `xattr -w com.apple.LaunchServices.OpenWithAppBundleIdentifier ... -r` (Keep Downloaded) so it stays available offline.
+**Personal memory syncs automatically via iCloud.** Add a Mac → run `npx setup-claude-memory@latest` → it detects the existing `config.json` on iCloud (reads `first_name`), skips the full setup, and registers the MCP servers in Claude Desktop's config on the new machine. iCloud folder is pinned to disk via `xattr -w com.apple.LaunchServices.OpenWithAppBundleIdentifier ... -r` (Keep Downloaded) so it stays available offline.
 
 **Fort Abode handles version updates.** `FortAbodeUtilityCentral/Resources/component-registry.json` has `setup-claude-memory` wired to `npm_registry` as the update source. Fort Abode checks npm on a schedule and offers one-click updates. No bundled files — pure npx, so no drift risk unlike weekly-rhythm.
 
@@ -136,6 +136,15 @@ it appears in FOUR live files: `~/.claude.json`, `claude_desktop_config.json`,
 `~/.codex/config.toml`, and `App Projects/Persona — Content Studio/.codex/config.toml`. A cutover
 updates all of them on every Mac, and leaves a tripwire at the old path (hard-fail sentinel, e.g. a
 directory named `memory.jsonl`) so a machine left behind breaks loudly instead of diverging silently.
+
+**⚠️ THE NPX CACHE TRAP — bit us for real on 2026-08-30.** A bare `npx setup-claude-memory` records
+a `^X.Y.0` range on FIRST run and reuses that cached copy indefinitely, because the installed version
+still satisfies the range. Kam's cache was seeded 2026-04-04 at `^1.4.0`; running the bare command
+after v1.6.0 shipped silently executed the **April v1.4.0 installer**, which rewrote his config back
+to `mcp-knowledge-graph` and looked like a successful install. Diagnosed by reading the cached copy's
+own `kgEntry()` on disk at `~/.npm/_npx/46805c36bffd607b/`. **Always `@latest`** — in docs, in
+instructions to Kam or Tiera, and in every `--package=` spec (Fort Abode's registry had the same hole,
+fixed in `ebc5370`). When an install "doesn't take", check the cache version BEFORE theorising.
 
 **Touching the live store (`memory.jsonl`) directly — mandatory discipline.** Every live session on
 every Mac writes this one file; concurrent writes bit twice in one day on 2026-08-30:

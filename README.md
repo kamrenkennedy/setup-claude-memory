@@ -29,7 +29,7 @@ To install: `brew install node`
 ## Run it (no install needed)
 
 ```bash
-npx setup-claude-memory
+npx setup-claude-memory@latest
 ```
 
 That's it. Follow the prompts.
@@ -52,7 +52,7 @@ Open a new chat and ask *"What do you know about me?"* — it should remember.
 Just run the same command on your second Mac:
 
 ```bash
-npx setup-claude-memory
+npx setup-claude-memory@latest
 ```
 
 Use the **same folder name** when prompted (default: `Claude Memory`). Your iCloud folder and all memories will already be there.
@@ -66,10 +66,21 @@ After setting up your personal memory, the CLI asks if you share an iCloud folde
 To install family memory on an already-configured Mac, or on a partner's Mac that already has their own personal memory:
 
 ```bash
-npx setup-claude-memory --family
+npx setup-claude-memory@latest --family
 ```
 
 The routing block is idempotent — re-running is safe. Templates never clobber existing files, so edits you make to `FAMILY_MEMORY.md` or `facts.json` stick.
+
+---
+
+## Always use `@latest`
+
+Run **`npx setup-claude-memory@latest`**, not the bare `npx setup-claude-memory`.
+
+A bare `npx <package>` records a `^X.Y.0` range the first time you run it and will happily keep
+serving that cached copy — for months. Someone whose cache was seeded in April silently re-ran a
+four-month-old installer, which rewrote their config back to the old memory server and looked like
+it had worked. `@latest` forces npm to check the registry.
 
 ---
 

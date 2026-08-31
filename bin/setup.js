@@ -243,33 +243,38 @@ async function main() {
       console.log(`  Deep context    : ${chalk.cyan(deepServerName)}`);
       console.log(`  iCloud folder   : ${chalk.cyan(memoryPath)}\n`);
 
+      // Bring the MCP server entries up to date UNCONDITIONALLY. This is what
+      // actually swaps in a new server version, so it must not hang off the
+      // question below — which asks about preferences, not servers. Until v1.6.2
+      // this lived only in the "no" branch, so answering YES to "update your
+      // configuration?" upgraded strictly less than answering no.
+      const wasLegacy = isLegacyMemoryEntry(config.mcpServers[serverName]);
+      config.mcpServers[serverName]     = kgEntry(memoryPath);
+      config.mcpServers[deepServerName] = deepEntry(memoryPath);
+      saveClaudeConfig(config);
+
+      if (wasLegacy) {
+        console.log(chalk.bold.green('✅  Memory server upgraded to search-first reads.\n'));
+        console.log('  Searches now return matching observations instead of whole entities,');
+        console.log('  so a large memory can no longer flood a session. Your memory files are');
+        console.log('  unchanged — same format, same location.\n');
+        console.log(chalk.dim('  Restart Claude Desktop to pick it up. Sessions already running\n  keep the old server until they restart, which is safe.\n'));
+      }
+
       const { doUpdate } = await inquirer.prompt([{
         type: 'confirm', name: 'doUpdate',
-        message: 'Everything looks good. Want to update your configuration?',
+        message: 'Review your preferences (Notion, Calendar, Reminders)?',
         default: false
       }]);
 
       if (!doUpdate) {
-        // Re-verify MCP entries are current and exit quietly
-        const wasLegacy = isLegacyMemoryEntry(config.mcpServers[serverName]);
-        config.mcpServers[serverName]     = kgEntry(memoryPath);
-        config.mcpServers[deepServerName] = deepEntry(memoryPath);
-        saveClaudeConfig(config);
-        if (wasLegacy) {
-          console.log(chalk.bold.green('\n✅  Memory server upgraded to search-first reads.\n'));
-          console.log('  Searches now return matching observations instead of whole entities,');
-          console.log('  so a large memory can no longer flood a session. Your memory files are');
-          console.log('  unchanged — same format, same location.\n');
-          console.log(chalk.dim('  Restart Claude Desktop to pick it up. Sessions already running\n  keep the old server until they restart, which is safe.\n'));
-        } else {
-          console.log(chalk.bold.green('\n✅  All good — nothing changed.\n'));
-        }
+        if (!wasLegacy) console.log(chalk.bold.green('✅  All good — nothing changed.\n'));
         await maybePromptFamilySetup();
         return;
       }
 
       await runConfigQuestionnaire(configPath, firstName, true);
-      console.log(chalk.bold.green('\n✅  Configuration updated.\n'));
+      console.log(chalk.bold.green('\n✅  Preferences updated.\n'));
       console.log(chalk.dim('Restart Claude Desktop for changes to take effect.\n'));
       await maybePromptFamilySetup();
       return;

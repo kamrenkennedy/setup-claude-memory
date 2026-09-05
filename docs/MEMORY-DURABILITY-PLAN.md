@@ -207,9 +207,17 @@ types a git command.
    install (Kam has it via homebrew; Tiera likely has neither, so fall back to the official
    installer package rather than assuming brew).
 3. **Move the store in**, `.gitignore` the `*.bak-*` / `backup-*` files and `.DS_Store`.
-4. **Secret-scan gate before the first push ever happens.** Non-negotiable — the store carries phone
-   numbers, live prod invite codes, emails, UUIDs, and `memory-family.jsonl`. The push does not
-   happen if the scan trips; it reports and stops.
+4. **Secret-scan gate before the first push ever happens** — ✅ BUILT 2026-09-05 (`1f8352d`),
+   `bin/memory-scan.mjs`, binary `aim-memory-scan`, 29 tests. Two tiers: credentials BLOCK, personal
+   data is REVIEWED with counts (245 phones / 1,339 emails / 1,504 UUIDs are normal in a memory store
+   — the control for them is that the repo is private). Findings are redacted; the allowlist takes
+   SHA-256 fingerprints, never values. Inside a repo it scans exactly what git would commit.
+
+   ⚠️ **It already found a real one.** A live Google Maps API key sits in plaintext in `memory.jsonl`
+   (entities `Travel Itinerary Skill` and `Google Maps`), in a deep doc, and in every backup — 14
+   occurrences of the same key. **Kam must rotate it before any push**, then it gets stripped from
+   the store. Two PEM hits in deep docs are confirmed false positives (fingerprint
+   `3021d90eb9437b2d`).
 5. **Create the PRIVATE repo on the running user's account**, push.
 6. **Install the semantic merge driver** (below) plus `.gitattributes`, so a conflict never reaches
    the user.

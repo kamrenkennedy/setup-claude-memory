@@ -117,14 +117,12 @@ cannot be patched durably in place — we vendor it.
    surrounding context, with a hard cap and a "N more matches" pointer. `aim_memory_get` gains the
    same cap so a whole-entity read can never blow a session again.
 3. Point `kgEntry()` at the new server.
-4. Ship as **v1.6.0** → npm → Fort Abode's scheduled check surfaces it.
-5. **Tiera:** accepts the Fort Abode update. Done — that is her entire involvement.
+4. Ship as **v1.6.0** → npm.
+5. **Tiera:** runs `npx setup-claude-memory@latest`. Done — that is her entire involvement.
 6. **Kam:** same, plus hand-update his 3 extra surfaces (`~/.claude.json`, `~/.codex/config.toml`,
    `Persona — Content Studio/.codex/config.toml`).
 
-Fort Abode checklist applies (CLAUDE.md → Shipping through Fort Abode). This is user-visible, so it
-needs `component-registry.json` copy + a `whats-new.json` entry — and the pending `--family` copy
-fix can ride along.
+Release checklist applies (CLAUDE.md → Releasing).
 
 ### What Phase 1 actually shipped
 
@@ -148,23 +146,11 @@ silently capped.
 Migration is automatic — `setup.js` rewrites the server entry on every run, including the
 "nothing changed" path, which now reports the upgrade honestly instead of claiming nothing happened.
 
-### Fort Abode — registry fixed, WHAT'S NEW deliberately parked
+### Distribution is npx only — Fort Abode is out of the loop
 
-`component-registry.json` is **done and pushed** (`ebc5370`): its `claude_config` still wrote
-`npx -y mcp-knowledge-graph` into users' Claude configs, so a marketplace install would have handed
-out the old server and quietly undone this release. That was functional, not copy — hence the
-widened checklist item 7 in this repo's CLAUDE.md.
-
-**The `whats-new.json` entry is NOT staged, by Kam's decision (2026-08-30):** Fort Abode is due a
-complete rework — replicating the workflow proven on Persona — so no effort goes into it until then.
-The copy below is **approved** and should be dropped in whenever Fort Abode next ships (it is on
-3.12.1; whats-new's top entry is 3.12.1):
-
-> - Claude's memory stays fast as it grows — it now looks up just the facts it needs instead of
->   loading everything it knows about a project, so long-running projects don't slow your
->   conversations down.
-> - Your memory file is safer: if your Mac shuts down mid-save, memory can no longer be left
->   half-written.
+**Kam's call, 2026-09-04:** Fort Abode is stalled and due a complete rework, so it is no longer part
+of how this package ships. Do not add Fort Abode steps to a release, and do not touch that repo from
+this project. Users — Kam and Tiera alike — upgrade with `npx setup-claude-memory@latest`.
 
 ## Phase 2 — Git-backed memory, built as an installer feature (needs Kam's go)
 
@@ -270,7 +256,7 @@ them, and the symlink bridge keeps everything working until he does.
 
 ## Phase 4 — Tiera onto the same system
 
-She runs the Phase 2 feature, delivered as a Fort Abode update. Her own GitHub account, her own
+She runs the Phase 2 feature by running `npx setup-claude-memory@latest --git`. Her own GitHub account, her own
 private repo, her own memory. Identical to Kam's, with three differences that are facts about her
 setup rather than a reduced design:
 
@@ -280,7 +266,7 @@ setup rather than a reduced design:
 - **Repo location default** is a plain home-folder path, not `~/Developer`.
 - **`gh` is probably absent**, so the guided install matters more on her Mac than on Kam's.
 
-Her involvement: accept the update, click through a GitHub sign-in once. Nothing after that.
+Her involvement: run one npx command, click through a GitHub sign-in once. Nothing after that.
 
 **Family memory stays on shared iCloud** — that is a separate system on a separate path (see above),
 and the shared folder is what lets it span two iCloud accounts. Kam's side can additionally mirror it
@@ -298,13 +284,13 @@ to an archive entity and stay recoverable.
 2. Phase 0 item 3 — move the 6 backup files out
 3. ✅ **Phase 1 built** (`3d3d858`) — `bin/memory-server.mjs`, 28 passing tests, tarball smoke test
    done. **Awaiting Kam's go on `npm publish`** (🔴 tier). After publishing: tag `v1.6.0`, verify
-   `npm view`, then Fort Abode registry copy + `whats-new.json` entry. Then switch sessions over one
-   at a time as they restart — old and new coexist safely, so there is no deadline.
+   `npm view`. Then switch sessions over one at a time as they restart — old and new coexist
+   safely, so there is no deadline.
 4. **Phase 2** — build `--git` as a real installer feature, including the merge driver. Bigger than
    the original hand-migration, and the price of parity.
 5. **Phase 3** — Kam runs it at a natural break, with the symlink bridge so his own cutover is also
    session-by-session. He is the feature's first user; anything rough surfaces on his Mac, not hers.
-6. **Phase 4** — Tiera runs it via a Fort Abode update.
+6. **Phase 4** — Tiera runs `npx setup-claude-memory@latest --git`.
 7. **Phase 5** — scheduled compaction, both.
 
 Family memory stays on shared iCloud throughout — it is not part of any phase.

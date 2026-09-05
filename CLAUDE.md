@@ -55,7 +55,7 @@ Multi-user model: each user's Claude memory writes to their own iCloud account (
 
 **Personal memory syncs automatically via iCloud.** Add a Mac → run `npx setup-claude-memory@latest` → it detects the existing `config.json` on iCloud (reads `first_name`), skips the full setup, and registers the MCP servers in Claude Desktop's config on the new machine. iCloud folder is pinned to disk via `xattr -w com.apple.LaunchServices.OpenWithAppBundleIdentifier ... -r` (Keep Downloaded) so it stays available offline.
 
-**Fort Abode handles version updates.** `FortAbodeUtilityCentral/Resources/component-registry.json` has `setup-claude-memory` wired to `npm_registry` as the update source. Fort Abode checks npm on a schedule and offers one-click updates. No bundled files — pure npx, so no drift risk unlike weekly-rhythm.
+**Updates are plain npx.** Users upgrade by running `npx setup-claude-memory@latest` — nothing else distributes this package. There are no bundled copies anywhere, so there is no drift risk.
 
 **Family memory is a shared iCloud folder.** `Kennedy Family Docs/Claude/Family Memory/` lives under the shared Kennedy Family Docs iCloud path. Both Kam and Tiera's Claudes read/write it. The routing block installed in `~/.claude/CLAUDE.md` by this CLI triggers family memory reads on any family-related topic.
 
@@ -96,8 +96,7 @@ Multi-user model: each user's Claude memory writes to their own iCloud account (
 
 ## Related systems (not in this repo)
 
-- **Fort Abode Utility Central** (`kamrenkennedy/FortAbodeUtilityCentral`) — SwiftUI macOS app that manages updates to this CLI + other Claude components. Installed on Kam's and Tiera's Macs. Detects new `setup-claude-memory` versions via npm and offers update.
-- **Weekly Rhythm Engine** (`kamrenkennedy/weekly-rhythm`) — sibling skill/engine. Same deployment pattern (iCloud templates → family folder). Reference model for how Fort Abode ships skills.
+- **Weekly Rhythm Engine** (`kamrenkennedy/weekly-rhythm`) — sibling skill/engine, same iCloud-templates deployment pattern.
 - **mcp-knowledge-graph** — npm package providing the AIM knowledge graph MCP server. We invoke via `npx -y mcp-knowledge-graph --memory-path <path>`. Not maintained by us.
 
 ## Memory durability track (opened 2026-08-30 — in flight, NOTHING BUILT YET)
@@ -143,8 +142,7 @@ still satisfies the range. Kam's cache was seeded 2026-04-04 at `^1.4.0`; runnin
 after v1.6.0 shipped silently executed the **April v1.4.0 installer**, which rewrote his config back
 to `mcp-knowledge-graph` and looked like a successful install. Diagnosed by reading the cached copy's
 own `kgEntry()` on disk at `~/.npm/_npx/46805c36bffd607b/`. **Always `@latest`** — in docs, in
-instructions to Kam or Tiera, and in every `--package=` spec (Fort Abode's registry had the same hole,
-fixed in `ebc5370`). When an install "doesn't take", check the cache version BEFORE theorising.
+instructions to Kam or Tiera, and in every `--package=` spec. When an install "doesn't take", check the cache version BEFORE theorising.
 
 **Touching the live store (`memory.jsonl`) directly — mandatory discipline.** Every live session on
 every Mac writes this one file; concurrent writes bit twice in one day on 2026-08-30:
@@ -170,40 +168,23 @@ version bumps not yet published; changes to `bin/deep-context-server.mjs` tool c
 the Content_Strategy_App durable core is DEFERRED and needs his explicit go-ahead); anything on
 Tiera's side of the system.
 
-## Shipping through Fort Abode
+## Releasing
 
-This package ships through Fort Abode Utility Central as a managed component. Fort Abode auto-detects new npm versions and offers one-click updates.
-
-**What Fort Abode's component-registry.json knows about this package:**
-
-| Field | Value |
-|---|---|
-| `version_source` | `npx_cache` → `npm_registry` |
-| `update_source` | `npm_registry` (package: `setup-claude-memory`) |
-| `update_command` | `npx_install` |
-| `min_app_version` | unset — any Fort Abode version can install |
-| Bundled files | none (pure npx) — no drift risk |
-
-**Update Fort Abode's marketplace copy (`user_description` + `usage_instructions`) when:** the new version adds user-visible behavior (new flags, new prompts, new memory features). Skip for mechanical bumps.
-
-**Cross-repo ship checklist (distilled from past failures — see deep context `fort-abode-v361-weekly-rhythm-v170-patch-2026-04-13` and `fort-abode-v3.7.0-dashboard-v2.0.0-planning-2026-04-14`):**
+**Fort Abode is OUT OF THE LOOP for this package (Kam's call, 2026-09-04).** That app is stalled and
+due a full rework; do not add Fort Abode steps to any release here, and do not touch that repo from
+this project. Distribution is plain npx and nothing else.
 
 1. npm ↔ GitHub parity: `npm view setup-claude-memory version` matches `git describe --tags`
-2. Both Fort Abode appcast files agree — **#1 historical failure mode** (N/A for setup-claude-memory; critical for weekly-rhythm)
-3. Bundled artifacts match canonical — N/A here (pure npx), but the trap for any repo with bundled files
-4. Canonical version headers bumped, not just copied forward
-5. Upstream repo hygiene: CHANGELOG updated, releases/ folder populated, clean `git status`, tag pushed
-6. Never `git add -A` — always explicit filenames (avoids accidentally committing `.env`, `.tgz`, etc.)
-7. **Fort Abode `component-registry.json` — `claude_config` is FUNCTIONAL, not copy.** It defines the
-   actual MCP command Fort Abode writes into a user's Claude config on install. **Any change to how a
-   server is invoked (binary name, package, flags) MUST update `claude_config`**, or marketplace
-   installs keep getting the old server and silently lose the upgrade — this exact trap was caught,
-   unshipped, on 2026-08-30 (`ebc5370`). Update `user_description` / `usage_instructions` too, for
-   user-visible features. Pin `--package=...@latest` or npx may serve a stale cached copy forever.
-8. Add a user-facing entry to `FortAbodeUtilityCentral/Resources/whats-new.json` so users see the change in Fort Abode's WHAT'S NEW panel after auto-update
-9. `aim_memory_add_facts` on `Fort_Abode_Utility_Central` entity after shipping
-
-**Before touching the Fort Abode repo itself:** read `FortAbodeUtilityCentral/CLAUDE.md` — don't assume Memory System protocol applies there.
+2. Version bumped in `package.json`, and **verify the bump actually landed in the commit** — a bump
+   chained behind a failing command silently does not run, and a passing test suite afterwards makes
+   the step look fine (bit us on 1.6.2)
+3. `npm test` green
+4. Tarball smoke test — `npm pack`, install into a scratch project, run the binary
+5. README updated if user-facing behavior changed
+6. Clean `git status`, tag pushed
+7. Never `git add -A` — always explicit filenames
+8. After publishing, verify the PUBLISHED artifact: install `setup-claude-memory@<version>` fresh from
+   npm and confirm the server starts. Publishing is not proof it works.
 
 ## Session protocol
 
@@ -228,13 +209,12 @@ Standard global wrap (Kam-Memory + Kam-Deep-Context), plus:
 6. `npm publish` from repo root
 7. `git tag vX.Y.Z && git push && git push --tags`
 8. Verify: `npm view setup-claude-memory version`
-9. Update Fort Abode memory entity (`aim_memory_add_facts` on `Fort_Abode_Utility_Central`) so Fort Abode coordination notes stay current
 
 ## Conventions
 
 - **Never clobber user-edited files.** The installer deploys templates only when they're missing. `FAMILY_MEMORY.md`, `changelog.md`, `config.json` — once written, never overwritten.
 - **Templates are authoritative here, deployed there.** Edit in `templates/` within the repo; the CLI copies them to iCloud at install time.
-- **Version tracking via file headers.** Templates that are app-managed (not user-editable) carry a version comment in the first few lines so the CLI / Fort Abode can detect when to refresh.
+- **Version tracking via file headers.** Templates that are app-managed (not user-editable) carry a version comment in the first few lines so the CLI can detect when to refresh.
 - **Idempotent routing-block inserts.** Appending to `~/.claude/CLAUDE.md` always uses magic marker comments (`<!-- family-memory-routing v1 -->` ... `<!-- /family-memory-routing -->`) so repeated runs don't duplicate.
 - **Imperative commit messages, explain the why.** See global CLAUDE.md.
 
@@ -256,15 +236,13 @@ observation convention already landed in global CLAUDE.md.
   corruption hazard). Then in order: gitignore/move backups → private repo + pre-push secret scan →
   search-first read server → scheduled compaction. Deep Context:
   `content-strategy-app-memory-hand-triage-executed-2026-08-30`.
-- **Open follow-ups:** Tiera family-memory handoff still pending (manual in-person step). Fort Abode
-  has an orphaned branch `claude/laughing-leavitt-71a4fb`, 11 commits ahead, whose worktree points at
-  the old `/Users/kamrenkennedy/` username — review before pruning.
-  ~~Fort Abode copy doesn't mention `--family`~~ — **stale, closed 2026-08-30**: both fields already
-  describe family memory. Verified, not assumed.
+- **Open follow-ups:** Tiera family-memory handoff still pending (manual in-person step).
 - **Last session (2026-08-30):** modernized this CLAUDE.md — durability track, store-touch
   discipline, config-surface map, 🟢🟡🔴 tiers. Caught this checkout sitting at April's `5a2d982`
   with uncommitted edits while remote had the 2026-05-06 refresh (`e3c790b`); merged by content,
-  dropped April's duplicate Fort Abode text in favor of the remote distilled section. NOTE:
+  dropped April's duplicate distribution text in favor of the remote section. NOTE:
   untracked `AGENTS.md` (Codex twin of this file) is a raw Claude→Codex find-replace with broken
   paths (`Codex Memory`, `setup-Codex-memory`) — fix before trusting or committing it.
-- **Last shipped:** v1.5.0 family memory on 2026-04-14 — Fort Abode v3.7.1 paired same day.
+- **Last shipped:** v1.6.1 on 2026-08-30. v1.6.2 is committed and tagged but NOT published — npm
+  auth expired mid-release. Until it publishes, npm's 1.6.1 still has the backwards update prompt,
+  so answering "yes" to it skips the server rewrite.

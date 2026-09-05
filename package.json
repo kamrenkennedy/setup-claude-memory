@@ -6,13 +6,15 @@
     "setup-claude-memory": "bin/setup.js",
     "aim-deep-context-server": "bin/deep-context-server.mjs",
     "aim-memory-server": "bin/memory-server.mjs",
-    "aim-memory-merge": "bin/memory-merge-driver.mjs"
+    "aim-memory-merge": "bin/memory-merge-driver.mjs",
+    "aim-memory-scan": "bin/memory-scan.mjs"
   },
   "scripts": {
     "start": "node ./bin/setup.js",
-    "test": "npm run test:server && npm run test:merge",
+    "test": "npm run test:server && npm run test:merge && npm run test:scan",
     "test:server": "node test/memory-server.test.mjs",
-    "test:merge": "node test/merge-driver.test.mjs"
+    "test:merge": "node test/merge-driver.test.mjs",
+    "test:scan": "node test/memory-scan.test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -43,6 +45,7 @@
     "bin/deep-context-server.mjs",
     "bin/memory-server.mjs",
     "bin/memory-merge-driver.mjs",
+    "bin/memory-scan.mjs",
     "bin/apple-embed.swift",
     "templates/**",
     "package.json",

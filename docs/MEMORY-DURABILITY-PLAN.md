@@ -219,7 +219,7 @@ types a git command.
    the hard-fail tripwire once every session is on the new path.
 9. **Schedule background sync** — periodic pull-rebase-push. Silent when clean.
 
-### The merge driver — this is what makes git safe for a non-developer
+### The merge driver — ✅ BUILT 2026-09-05 (`1f9a191`)
 
 A merge conflict Tiera cannot clear equals broken memory. So conflicts must resolve themselves
 **correctly**, not merely automatically.
@@ -239,6 +239,17 @@ graph. It needs a semantic driver instead:
 
 This driver is also what makes concurrent multi-session writing *safe* rather than merely loud,
 which is the deeper win over the current last-write-wins file.
+
+**Shipped as `bin/memory-merge-driver.mjs` (binary `aim-memory-merge`), 32 tests, half of them
+running a real `git merge`.** Verified against a divergence built from the live 173-entity store:
+both concurrent facts kept, the prune honoured, observation math exact (2,080 − 1 + 2 = 2,081), no
+duplicate entity names.
+
+⚠️ **The installer MUST quote the driver path when registering it** —
+`node '/path/with spaces/memory-merge-driver.mjs' %O %A %B %P`. Git runs the driver through a shell,
+so an unquoted path containing a space breaks the merge silently and hands the user conflict markers.
+This repo, and the installed location, both live under a directory with a space. Caught only because
+half the tests drive real git rather than the functions.
 
 Any step touching `memory.jsonl` follows the live-store discipline in CLAUDE.md (snapshot + md5,
 verify by content not index, byte-identical round-trip proof, `mkstemp` + `os.replace`, `chmod 0644`).

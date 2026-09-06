@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 640" width="1200" height="640" role="img" aria-label="How setup-claude-memory works: your Claude talks over MCP to two servers from this package, which read and write plain files in your memory folder; the folder syncs through iCloud Drive by default or a private GitHub repo you own, with a secret scan before every push. An optional shared family folder is read before family questions.">
+<defs>
+  <pattern id="dots" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(30)">
+    <circle cx="2" cy="2" r="1.25" fill="#FAF9F7" fill-opacity="0.12"/>
+  </pattern>
+  <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#7FA0B4"/>
+  </marker>
+  <marker id="arrowInk" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#FAF9F7"/>
+  </marker>
+</defs><rect width="1200" height="640" fill="#1A1A1A"/>
+<text x="145" y="62" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#7C807D" text-anchor="middle" letter-spacing="2.2" opacity="1">YOUR CLAUDE</text>
+<text x="460" y="62" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#7C807D" text-anchor="middle" letter-spacing="2.2" opacity="1">TWO MCP SERVERS, THIS PACKAGE</text>
+<text x="760" y="62" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#7C807D" text-anchor="middle" letter-spacing="2.2" opacity="1">YOUR FILES</text>
+<text x="1060" y="62" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#7C807D" text-anchor="middle" letter-spacing="2.2" opacity="1">SYNC, YOUR ACCOUNTS</text>
+<rect x="47" y="127" width="210" height="200" rx="16" fill="url(#dots)"/>
+<rect x="40" y="120" width="210" height="200" rx="16" fill="#262624" stroke="#FAF9F7" stroke-width="3"/>
+<text x="145" y="158" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="22" font-weight="300" fill="#FAF9F7" text-anchor="middle" letter-spacing="0" opacity="1">Claude</text>
+<rect x="62" y="182" width="166" height="36" rx="10" fill="#2E2E2B" stroke="#FAF9F7" stroke-width="2"/>
+<text x="145" y="206" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#FAF9F7" text-anchor="middle" letter-spacing="0" opacity="1">Claude Desktop</text>
+<rect x="62" y="234" width="166" height="36" rx="10" fill="#2E2E2B" stroke="#FAF9F7" stroke-width="2"/>
+<text x="145" y="258" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#FAF9F7" text-anchor="middle" letter-spacing="0" opacity="1">Claude Code</text>
+<text x="145" y="302" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#7C807D" text-anchor="middle" letter-spacing="0" opacity="1">reads ~/.claude/CLAUDE.md</text>
+<rect x="337" y="107" width="260" height="110" rx="16" fill="url(#dots)"/>
+<rect x="330" y="100" width="260" height="110" rx="16" fill="#262624" stroke="#FAF9F7" stroke-width="3"/>
+<text x="348" y="130" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" font-weight="600" fill="#FAF9F7" text-anchor="start" letter-spacing="0" opacity="1">aim-memory-server</text>
+<text x="348" y="154" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#A8ACA9" text-anchor="start" letter-spacing="0" opacity="1">Knowledge graph. Facts, status, relations.</text>
+<text x="348" y="172" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#A8ACA9" text-anchor="start" letter-spacing="0" opacity="1">Search returns matching lines, never a</text>
+<text x="348" y="188" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#A8ACA9" text-anchor="start" letter-spacing="0" opacity="1">whole entity. Writes are atomic.</text>
+<rect x="337" y="257" width="260" height="110" rx="16" fill="url(#dots)"/>
+<rect x="330" y="250" width="260" height="110" rx="16" fill="#262624" stroke="#FAF9F7" stroke-width="3"/>
+<text x="348" y="280" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" font-weight="600" fill="#FAF9F7" text-anchor="start" letter-spacing="0" opacity="1">aim-deep-context-server</text>
+<text x="348" y="304" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#A8ACA9" text-anchor="start" letter-spacing="0" opacity="1">Long-form archive. Session notes,</text>
+<text x="348" y="322" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#A8ACA9" text-anchor="start" letter-spacing="0" opacity="1">decisions, research. Keyword and</text>
+<text x="348" y="338" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#A8ACA9" text-anchor="start" letter-spacing="0" opacity="1">meaning-based search, on your Mac.</text>
+<rect x="667" y="107" width="200" height="260" rx="16" fill="url(#dots)"/>
+<rect x="660" y="100" width="200" height="260" rx="16" fill="#262624" stroke="#FAF9F7" stroke-width="3"/>
+<text x="760" y="132" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" font-weight="600" fill="#FAF9F7" text-anchor="middle" letter-spacing="0" opacity="1">Claude Memory/</text>
+<rect x="680" y="150" width="160" height="28" rx="8" fill="#2E2E2B"/>
+<text x="692" y="169" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" font-weight="400" fill="#FAF9F7" text-anchor="start" letter-spacing="0" opacity="1">memory.jsonl</text>
+<rect x="680" y="188" width="160" height="28" rx="8" fill="#2E2E2B"/>
+<text x="692" y="207" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" font-weight="400" fill="#FAF9F7" text-anchor="start" letter-spacing="0" opacity="1">memory-&lt;ctx&gt;.jsonl</text>
+<rect x="680" y="226" width="160" height="28" rx="8" fill="#2E2E2B"/>
+<text x="692" y="245" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" font-weight="400" fill="#FAF9F7" text-anchor="start" letter-spacing="0" opacity="1">deep/index.json</text>
+<rect x="680" y="264" width="160" height="28" rx="8" fill="#2E2E2B"/>
+<text x="692" y="283" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" font-weight="400" fill="#FAF9F7" text-anchor="start" letter-spacing="0" opacity="1">deep/*.md</text>
+<rect x="680" y="302" width="160" height="28" rx="8" fill="#2E2E2B"/>
+<text x="692" y="321" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" font-weight="400" fill="#FAF9F7" text-anchor="start" letter-spacing="0" opacity="1">config.json</text>
+<text x="760" y="350" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#7C807D" text-anchor="middle" letter-spacing="0" opacity="1">plain text, yours to open</text>
+<rect x="967" y="107" width="200" height="110" rx="16" fill="url(#dots)"/>
+<rect x="960" y="100" width="200" height="110" rx="16" fill="#262624" stroke="#FAF9F7" stroke-width="3"/>
+<text x="1060" y="130" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#FAF9F7" text-anchor="middle" letter-spacing="0" opacity="1">iCloud Drive</text>
+<text x="1060" y="150" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#A8ACA9" text-anchor="middle" letter-spacing="0" opacity="1">the default, your Apple account</text>
+<text x="1060" y="176" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#7C807D" text-anchor="middle" letter-spacing="0" opacity="1">your other Macs see it</text>
+<text x="1060" y="192" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#7C807D" text-anchor="middle" letter-spacing="0" opacity="1">in about a minute</text>
+<rect x="967" y="243" width="200" height="152" rx="16" fill="url(#dots)"/>
+<rect x="960" y="236" width="200" height="152" rx="16" fill="#262624" stroke="#FAF9F7" stroke-width="3"/>
+<text x="1060" y="264" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#FAF9F7" text-anchor="middle" letter-spacing="0" opacity="1">Private GitHub repo</text>
+<text x="1060" y="283" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.5" font-weight="400" fill="#A8ACA9" text-anchor="middle" letter-spacing="0" opacity="1">npx setup-claude-memory --git</text>
+<rect x="984" y="298" width="152" height="22" rx="11" fill="#3D2A24" stroke="#D4674F" stroke-width="1.5"/>
+<text x="1060" y="313" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="8.5" font-weight="700" fill="#D4674F" text-anchor="middle" letter-spacing="1" opacity="1">SECRET SCAN ON PUSH</text>
+<rect x="984" y="326" width="152" height="22" rx="11" fill="#26383F" stroke="#7FA0B4" stroke-width="1.5"/>
+<text x="1060" y="341" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="8.5" font-weight="700" fill="#7FA0B4" text-anchor="middle" letter-spacing="1" opacity="1">MERGES BY MEANING</text>
+<text x="1060" y="366" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#7C807D" text-anchor="middle" letter-spacing="0" opacity="1">a second Mac runs the same</text>
+<text x="1060" y="380" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#7C807D" text-anchor="middle" letter-spacing="0" opacity="1">command and joins</text>
+<line x1="250" y1="155" x2="322" y2="155" stroke="#7FA0B4" stroke-width="2.5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<text x="286" y="142" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#A8ACA9" text-anchor="middle" letter-spacing="1" opacity="1">MCP</text>
+<line x1="250" y1="305" x2="322" y2="305" stroke="#7FA0B4" stroke-width="2.5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<text x="286" y="292" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#A8ACA9" text-anchor="middle" letter-spacing="1" opacity="1">MCP</text>
+<line x1="590" y1="155" x2="652" y2="155" stroke="#7FA0B4" stroke-width="2.5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<text x="621" y="142" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#A8ACA9" text-anchor="middle" letter-spacing="0" opacity="1">read / write</text>
+<line x1="590" y1="305" x2="652" y2="305" stroke="#7FA0B4" stroke-width="2.5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<text x="621" y="292" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#A8ACA9" text-anchor="middle" letter-spacing="0" opacity="1">read / write</text>
+<polyline points="860,148 952,148" fill="none" stroke="#7FA0B4" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow)"/>
+<text x="906" y="136" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#A8ACA9" text-anchor="middle" letter-spacing="0" opacity="1">syncs</text>
+<polyline points="860,300 952,300" fill="none" stroke="#7FA0B4" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow)"/>
+<text x="906" y="288" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#A8ACA9" text-anchor="middle" letter-spacing="0" opacity="1">commits</text>
+<text x="906" y="318" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="10.5" font-weight="400" fill="#7C807D" text-anchor="middle" letter-spacing="0" opacity="1">every 15 min</text>
+<text x="906" y="226" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#7C807D" text-anchor="middle" letter-spacing="0" opacity="1">or</text>
+<line x1="906" y1="160" x2="906" y2="212" stroke="#7C807D" stroke-width="1.5" stroke-dasharray="2 6" stroke-linecap="round"/>
+<line x1="906" y1="236" x2="906" y2="284" stroke="#7C807D" stroke-width="1.5" stroke-dasharray="2 6" stroke-linecap="round"/>
+<text x="460" y="468" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#7C807D" text-anchor="middle" letter-spacing="2.2" opacity="1">OPTIONAL, SHARED WITH FAMILY</text>
+<rect x="330" y="486" width="530" height="96" rx="16" fill="#262624" stroke="#FAF9F7" stroke-width="3" stroke-dasharray="8 6"/>
+<text x="348" y="516" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#FAF9F7" text-anchor="start" letter-spacing="0" opacity="1">Kennedy Family Docs/Claude/Family Memory/</text>
+<text x="348" y="538" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#A8ACA9" text-anchor="start" letter-spacing="0" opacity="1">A shared iCloud folder both partners' Claudes read before answering</text>
+<text x="348" y="556" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#A8ACA9" text-anchor="start" letter-spacing="0" opacity="1">family questions: insurance, house, pets, shared money. Markdown, append-only log.</text>
+<polyline points="145,320 145,534 322,534" fill="none" stroke="#7FA0B4" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow)" stroke-dasharray="6 6"/>
+<text x="232" y="522" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#A8ACA9" text-anchor="middle" letter-spacing="0" opacity="1">routed by CLAUDE.md</text>
+</svg>

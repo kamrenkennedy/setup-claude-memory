@@ -1,7 +1,15 @@
 {
   "name": "setup-claude-memory",
   "version": "1.10.1",
-  "description": "Interactive CLI to set up Claude persistent memory via iCloud \u2014 knowledge graph with search-first reads + deep context archive with semantic search, powered by MCP",
+  "description": "Interactive CLI to set up Claude persistent memory via iCloud — knowledge graph with search-first reads + deep context archive with semantic search, powered by MCP",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kamrenkennedy/setup-claude-memory.git"
+  },
+  "homepage": "https://github.com/kamrenkennedy/setup-claude-memory#readme",
+  "bugs": {
+    "url": "https://github.com/kamrenkennedy/setup-claude-memory/issues"
+  },
   "bin": {
     "setup-claude-memory": "bin/setup.js",
     "aim-deep-context-server": "bin/deep-context-server.mjs",

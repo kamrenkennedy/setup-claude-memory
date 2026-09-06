@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 310" width="1200" height="310" role="img" aria-label="Search-first reads: against the same 981-observation entity, a naive lookup returned the whole entity, about 809,000 characters, while a search returns only the matching lines, about 13,000 characters, and reports how many matched versus how many it returned.">
+<defs>
+  <pattern id="dots" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(30)">
+    <circle cx="2" cy="2" r="1.25" fill="#1E2A38" fill-opacity="0.16"/>
+  </pattern>
+  <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#2E6E73"/>
+  </marker>
+  <marker id="arrowInk" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#1E2A38"/>
+  </marker>
+</defs><rect width="1200" height="310" fill="#F2EBDD"/>
+<text x="60" y="56" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#8A8F8B" text-anchor="start" letter-spacing="2.2" opacity="1">THE SAME ENTITY. 981 OBSERVATIONS.</text>
+<text x="60" y="106" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#5C605D" text-anchor="start" letter-spacing="0" opacity="1">a naive lookup</text>
+<rect x="200" y="88" width="220" height="30" rx="15.0" fill="#F3EDDF" stroke="#1E2A38" stroke-width="2"/>
+<text x="310.2" y="107.0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="500" fill="#1E2A38" text-anchor="middle" letter-spacing="0" opacity="1">get("Content_Strategy_App")</text>
+<polyline points="432.4,103 480.4,103" fill="none" stroke="#2E6E73" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow)"/>
+<rect x="498.4" y="94" width="647.6" height="20" rx="10" fill="url(#dots)"/>
+<rect x="492.4" y="88" width="647.6" height="30" rx="15" fill="#F1D9CC" stroke="#C96F4A" stroke-width="2"/>
+<text x="510.4" y="108" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="12.5" font-weight="600" fill="#1E2A38" text-anchor="start" letter-spacing="0" opacity="1">the whole entity. ~809,000 characters. the context window is gone.</text>
+<text x="60" y="196" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#5C605D" text-anchor="start" letter-spacing="0" opacity="1">search-first</text>
+<rect x="200" y="178" width="184" height="30" rx="15.0" fill="#F3EDDF" stroke="#1E2A38" stroke-width="2"/>
+<text x="292.2" y="197.0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="500" fill="#1E2A38" text-anchor="middle" letter-spacing="0" opacity="1">search("invite codes")</text>
+<polyline points="396.4,193 444.4,193" fill="none" stroke="#2E6E73" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow)"/>
+<rect x="456.4" y="178" width="30" height="30" rx="15" fill="#D6E4E1" stroke="#2E6E73" stroke-width="2"/>
+<text x="500.4" y="198" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="12.5" font-weight="600" fill="#2E6E73" text-anchor="start" letter-spacing="0" opacity="1">only the matching lines. ~13,000 characters.</text>
+<text x="456.4" y="232" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#8A8F8B" text-anchor="start" letter-spacing="0" opacity="1">and it says how many matched against how many it returned, so the assistant knows when to narrow.</text>
+<text x="60" y="282" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#8A8F8B" text-anchor="start" letter-spacing="0" opacity="1">Every response has a character budget. Over budget, the server returns fewer lines. It never cuts a response mid-JSON.</text>
+</svg>

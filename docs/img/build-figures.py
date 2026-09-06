@@ -1,0 +1,435 @@
+#!/usr/bin/env python3
+"""Emit the README figures in both themes.
+
+Shared language: sticker linework, halftone offset shadows, cream / Night Gallery grounds,
+thin display type, mono for file names, one terracotta accent, teal for data flow.
+"""
+import os, sys
+
+OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.abspath(__file__))
+os.makedirs(OUT, exist_ok=True)
+
+THEMES = {
+    "light": dict(
+        bg="#F2EBDD", card="#FBF7EE", card2="#F3EDDF", ink="#1E2A38", muted="#5C605D",
+        quiet="#8A8F8B", line="#1E2A38", teal="#2E6E73", tealwash="#D6E4E1", rust="#C96F4A",
+        rustwash="#F1D9CC", sage="#C8D9C5", dot="#1E2A38", dotop="0.16", white="#FFFFFF",
+        shadow="#1E2A38", shadowop="0.10", ghost="#9AA09C",
+    ),
+    "dark": dict(
+        bg="#1A1A1A", card="#262624", card2="#2E2E2B", ink="#FAF9F7", muted="#A8ACA9",
+        quiet="#7C807D", line="#FAF9F7", teal="#7FA0B4", tealwash="#26383F", rust="#D4674F",
+        rustwash="#3D2A24", sage="#33403A", dot="#FAF9F7", dotop="0.12", white="#FAF9F7",
+        shadow="#000000", shadowop="0.35", ghost="#5E625F",
+    ),
+}
+
+THEMES["vars"] = dict(
+    bg="var(--fig)", card="var(--card)", card2="var(--card2)", ink="var(--ink)", muted="var(--ink-muted)",
+    quiet="var(--ink-quiet)", line="var(--ink)", teal="var(--teal)", tealwash="var(--teal-wash)", rust="var(--rust)",
+    rustwash="var(--rust-wash)", sage="var(--sage)", dot="var(--ink)", dotop="0.14", white="var(--glove)",
+    shadow="var(--ink)", shadowop="0.14", ghost="var(--ink-quiet)",
+)
+
+FONT = "Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif"
+MONO = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+
+
+def defs(p):
+    return f"""<defs>
+  <pattern id="dots" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(30)">
+    <circle cx="2" cy="2" r="1.25" fill="{p['dot']}" fill-opacity="{p['dotop']}"/>
+  </pattern>
+  <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="{p['teal']}"/>
+  </marker>
+  <marker id="arrowInk" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="{p['ink']}"/>
+  </marker>
+</defs>"""
+
+
+def box(p, x, y, w, h, r=16, fill=None, stroke=None, sw=3, halftone=True, dash=None):
+    fill = fill or p["card"]
+    stroke = stroke or p["line"]
+    s = ""
+    if halftone:
+        s += f'<rect x="{x+7}" y="{y+7}" width="{w}" height="{h}" rx="{r}" fill="url(#dots)"/>\n'
+    d = f' stroke-dasharray="{dash}"' if dash else ""
+    s += f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{r}" fill="{fill}" stroke="{stroke}" stroke-width="{sw}"{d}/>\n'
+    return s
+
+
+def text(p, x, y, s, size=14, weight=400, fill=None, anchor="start", mono=False, ls=0, op=1, halo=False):
+    fill = fill or p["ink"]
+    fam = MONO if mono else FONT
+    h = f' paint-order="stroke" stroke="{p["bg"]}" stroke-width="6" stroke-linejoin="round"' if halo else ""
+    return (f'<text x="{x}" y="{y}" font-family="{fam}" font-size="{size}" font-weight="{weight}" '
+            f'fill="{fill}" text-anchor="{anchor}" letter-spacing="{ls}" opacity="{op}"{h}>{s}</text>\n')
+
+
+def eyebrow(p, x, y, s, anchor="start", fill=None):
+    return text(p, x, y, s.upper(), size=11, weight=700, fill=fill or p["quiet"], anchor=anchor, ls=2.2)
+
+
+def pill(p, x, y, s, fill=None, stroke=None, color=None, w=None, h=26, size=11, mono=False):
+    w = w or (len(s) * 7.2 + 26)
+    stroke = stroke or p["line"]
+    fill = fill or "none"
+    color = color or p["ink"]
+    out = f'<rect x="{x}" y="{y}" width="{w:.0f}" height="{h}" rx="{h/2}" fill="{fill}" stroke="{stroke}" stroke-width="2"/>\n'
+    out += text(p, x + w / 2, y + h / 2 + 4, s, size=size, weight=700 if not mono else 500, fill=color,
+                anchor="middle", mono=mono, ls=0 if mono else 1.2)
+    return out, w
+
+
+def arrow(p, pts, label=None, label2=None, color=None, dash=None, marker="arrow", sw=2.5, lx=None, ly=None):
+    color = color or p["teal"]
+    d = " ".join(f"{x},{y}" for x, y in pts)
+    dd = f' stroke-dasharray="{dash}"' if dash else ""
+    s = f'<polyline points="{d}" fill="none" stroke="{color}" stroke-width="{sw}" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#{marker})"{dd}/>\n'
+    if label:
+        (x0, y0), (x1, y1) = pts[0], pts[-1]
+        mx = lx if lx is not None else (x0 + x1) / 2
+        my = ly if ly is not None else min(y0, y1) - 10
+        s += text(p, mx, my, label, size=12, weight=600, fill=p["muted"], anchor="middle")
+        if label2:
+            s += text(p, mx, my + 16 + (abs(y1 - y0) if abs(y1 - y0) < 3 else 0), label2, size=12, weight=500,
+                      fill=p["quiet"], anchor="middle")
+    return s
+
+
+def mascot(p, cx, cy, scale=1.0, face=True):
+    """The memory card: an index card with a face, rubber-hose arms, sneakers. Anchored at card center."""
+    g = f'<g transform="translate({cx},{cy}) scale({scale})">\n'
+    # shadow
+    g += f'<ellipse cx="0" cy="182" rx="118" ry="9" fill="{p["shadow"]}" fill-opacity="{p["shadowop"]}"/>\n'
+    # legs + sneakers
+    for lx in (-32, 22):
+        g += f'<rect x="{lx}" y="118" width="12" height="44" rx="6" fill="{p["ink"]}"/>\n'
+        g += f'<rect x="{lx-18}" y="150" width="48" height="22" rx="11" fill="{p["white"]}" stroke="{p["line"]}" stroke-width="4"/>\n'
+        g += f'<line x1="{lx-10}" y1="160" x2="{lx+22}" y2="160" stroke="{p["line"]}" stroke-width="2.5" stroke-linecap="round"/>\n'
+    # arms (rubber hose)
+    g += f'<path d="M-104,10 C-150,30 -160,80 -132,112" fill="none" stroke="{p["ink"]}" stroke-width="12" stroke-linecap="round"/>\n'
+    g += f'<path d="M104,10 C150,30 158,70 148,96" fill="none" stroke="{p["ink"]}" stroke-width="12" stroke-linecap="round"/>\n'
+    # hands (gloves)
+    g += f'<circle cx="-134" cy="118" r="17" fill="{p["white"]}" stroke="{p["line"]}" stroke-width="4"/>\n'
+    g += f'<circle cx="150" cy="104" r="17" fill="{p["white"]}" stroke="{p["line"]}" stroke-width="4"/>\n'
+    # padlock in the right hand (private)
+    g += f'<path d="M140,86 a12,12 0 0 1 24,0 v8" fill="none" stroke="{p["line"]}" stroke-width="4"/>\n'
+    g += f'<rect x="134" y="92" width="36" height="28" rx="6" fill="{p["teal"]}" stroke="{p["line"]}" stroke-width="4"/>\n'
+    g += f'<circle cx="152" cy="106" r="3.5" fill="{p["white"]}"/>\n'
+    # card body with halftone offset
+    g += f'<rect x="-98" y="-118" width="210" height="250" rx="20" fill="url(#dots)"/>\n'
+    g += f'<rect x="-105" y="-125" width="210" height="250" rx="20" fill="{p["card"]}" stroke="{p["line"]}" stroke-width="5"/>\n'
+    # index tab
+    g += f'<rect x="-84" y="-142" width="76" height="26" rx="9" fill="{p["rust"]}" stroke="{p["line"]}" stroke-width="4"/>\n'
+    # ruled line under the tab
+    g += f'<line x1="-105" y1="-90" x2="105" y2="-90" stroke="{p["line"]}" stroke-width="3" stroke-opacity="0.35"/>\n'
+    if face:
+        for ex in (-40, 40):
+            g += f'<ellipse cx="{ex}" cy="-40" rx="22" ry="26" fill="{p["white"]}" stroke="{p["line"]}" stroke-width="4"/>\n'
+            g += f'<circle cx="{ex+6}" cy="-36" r="9" fill="{p["ink"]}"/>\n'
+            g += f'<circle cx="{ex+9}" cy="-40" r="3" fill="{p["white"]}"/>\n'
+        # brows
+        g += f'<path d="M-62,-78 q22,-10 44,-2" fill="none" stroke="{p["line"]}" stroke-width="4" stroke-linecap="round"/>\n'
+        g += f'<path d="M18,-80 q22,-8 44,4" fill="none" stroke="{p["line"]}" stroke-width="4" stroke-linecap="round"/>\n'
+        # smile
+        g += f'<path d="M-28,10 q28,26 56,0" fill="none" stroke="{p["line"]}" stroke-width="4" stroke-linecap="round"/>\n'
+    # observation lines (the memory)
+    for i, w in enumerate((124, 88, 150)):
+        g += f'<rect x="-75" y="{44+i*22}" width="{w}" height="9" rx="4.5" fill="{p["teal"]}" fill-opacity="{0.85 - i*0.18}"/>\n'
+    g += "</g>\n"
+    return g
+
+
+# ────────────────────────────────────────────────────────────────────────────────
+def hero(p):
+    W, H = 1200, 420
+    s = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" role="img" aria-label="setup-claude-memory: memory that stays yours. Persistent memory for Claude, kept in local files and synced through accounts you already own.">\n'
+    s += defs(p)
+    s += f'<rect width="{W}" height="{H}" fill="{p["bg"]}"/>\n'
+    # left text
+    s += eyebrow(p, 72, 112, "Kam Studios  ·  open source  ·  Mac")
+    s += text(p, 70, 188, "Memory that", size=66, weight=300, ls=-2)
+    s += text(p, 70, 254, "stays yours.", size=66, weight=300, ls=-2)
+    s += text(p, 72, 300, "Persistent memory for Claude. Plain files on your Mac,", size=17, fill=p["muted"])
+    s += text(p, 72, 324, "synced through accounts you already own, no server in the middle.", size=17, fill=p["muted"])
+    x = 72
+    for label, fill, stroke, color in (("search-first reads", None, None, None),
+                                        ("private git sync", None, None, None),
+                                        ("scan before push", p["rustwash"], p["rust"], p["rust"] if p["bg"] == "#1A1A1A" else p["ink"])):
+        out, w = pill(p, x, 352, label, fill=fill, stroke=stroke, color=color)
+        s += out
+        x += w + 10
+    # right illustration
+    s += f'<circle cx="930" cy="212" r="168" fill="{p["sage"]}"/>\n'
+    s += f'<circle cx="930" cy="212" r="168" fill="url(#dots)"/>\n'
+    # relation graph behind the card
+    nodes = [(772, 96), (1102, 118), (1112, 352), (742, 300)]
+    for (ax, ay), (bx, by) in ((nodes[0], nodes[1]), (nodes[1], nodes[2]), (nodes[2], nodes[3]), (nodes[3], nodes[0])):
+        s += f'<line x1="{ax}" y1="{ay}" x2="{bx}" y2="{by}" stroke="{p["line"]}" stroke-width="3" stroke-dasharray="1 9" stroke-linecap="round" stroke-opacity="0.7"/>\n'
+    for i, (nx, ny) in enumerate(nodes):
+        fill = p["rust"] if i == 1 else p["card"]
+        s += f'<circle cx="{nx}" cy="{ny}" r="{15 if i else 13}" fill="{fill}" stroke="{p["line"]}" stroke-width="4"/>\n'
+    s += mascot(p, 930, 206, scale=0.92)
+    s += "</svg>\n"
+    return s
+
+
+# ────────────────────────────────────────────────────────────────────────────────
+def architecture(p):
+    W, H = 1200, 640
+    s = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" role="img" aria-label="How setup-claude-memory works: your Claude talks over MCP to two servers from this package, which read and write plain files in your memory folder; the folder syncs through iCloud Drive by default or a private GitHub repo you own, with a secret scan before every push. An optional shared family folder is read before family questions.">\n'
+    s += defs(p)
+    s += f'<rect width="{W}" height="{H}" fill="{p["bg"]}"/>\n'
+    # column eyebrows
+    s += eyebrow(p, 145, 62, "Your Claude", anchor="middle")
+    s += eyebrow(p, 460, 62, "Two MCP servers, this package", anchor="middle")
+    s += eyebrow(p, 760, 62, "Your files", anchor="middle")
+    s += eyebrow(p, 1060, 62, "Sync, your accounts", anchor="middle")
+
+    # C1 Claude
+    s += box(p, 40, 120, 210, 200)
+    s += text(p, 145, 158, "Claude", size=22, weight=300, anchor="middle")
+    for i, lbl in enumerate(("Claude Desktop", "Claude Code")):
+        s += f'<rect x="62" y="{182+i*52}" width="166" height="36" rx="10" fill="{p["card2"]}" stroke="{p["line"]}" stroke-width="2"/>\n'
+        s += text(p, 145, f"{206+i*52}", lbl, size=13, weight=600, anchor="middle")
+    s += text(p, 145, 302, "reads ~/.claude/CLAUDE.md", size=11, fill=p["quiet"], anchor="middle", mono=True)
+
+    # C2 servers
+    s += box(p, 330, 100, 260, 110)
+    s += text(p, 348, 130, "aim-memory-server", size=14, weight=600, mono=True)
+    s += text(p, 348, 154, "Knowledge graph. Facts, status, relations.", size=12, fill=p["muted"])
+    s += text(p, 348, 172, "Search returns matching lines, never a", size=12, fill=p["muted"])
+    s += text(p, 348, 188, "whole entity. Writes are atomic.", size=12, fill=p["muted"])
+    s += box(p, 330, 250, 260, 110)
+    s += text(p, 348, 280, "aim-deep-context-server", size=14, weight=600, mono=True)
+    s += text(p, 348, 304, "Long-form archive. Session notes,", size=12, fill=p["muted"])
+    s += text(p, 348, 322, "decisions, research. Keyword and", size=12, fill=p["muted"])
+    s += text(p, 348, 338, "meaning-based search, on your Mac.", size=12, fill=p["muted"])
+
+    # C3 files
+    s += box(p, 660, 100, 200, 260)
+    s += text(p, 760, 132, "Claude Memory/", size=14, weight=600, anchor="middle", mono=True)
+    files = ("memory.jsonl", "memory-&lt;ctx&gt;.jsonl", "deep/index.json", "deep/*.md", "config.json")
+    for i, f in enumerate(files):
+        s += f'<rect x="680" y="{150+i*38}" width="160" height="28" rx="8" fill="{p["card2"]}"/>\n'
+        s += text(p, 692, f"{169+i*38}", f, size="11.5", fill=p["ink"], mono=True)
+    s += text(p, 760, 350, "plain text, yours to open", size=11, fill=p["quiet"], anchor="middle")
+
+    # C4 sync
+    s += box(p, 960, 100, 200, 110)
+    s += text(p, 1060, 130, "iCloud Drive", size=15, weight=600, anchor="middle")
+    s += text(p, 1060, 150, "the default, your Apple account", size=11.5, fill=p["muted"], anchor="middle")
+    s += text(p, 1060, 176, "your other Macs see it", size=11, fill=p["quiet"], anchor="middle")
+    s += text(p, 1060, 192, "in about a minute", size=11, fill=p["quiet"], anchor="middle")
+
+    s += box(p, 960, 236, 200, 152)
+    s += text(p, 1060, 264, "Private GitHub repo", size=15, weight=600, anchor="middle")
+    s += text(p, 1060, 283, "npx setup-claude-memory --git", size=10.5, fill=p["muted"], anchor="middle", mono=True)
+    s += f'<rect x="984" y="298" width="152" height="22" rx="11" fill="{p["rustwash"]}" stroke="{p["rust"]}" stroke-width="1.5"/>\n'
+    s += text(p, 1060, 313, "SECRET SCAN ON PUSH", size=8.5, weight=700, fill=p["rust"], anchor="middle", ls=1)
+    s += f'<rect x="984" y="326" width="152" height="22" rx="11" fill="{p["tealwash"]}" stroke="{p["teal"]}" stroke-width="1.5"/>\n'
+    s += text(p, 1060, 341, "MERGES BY MEANING", size=8.5, weight=700, fill=p["teal"], anchor="middle", ls=1)
+    s += text(p, 1060, 366, "a second Mac runs the same", size=11, fill=p["quiet"], anchor="middle")
+    s += text(p, 1060, 380, "command and joins", size=11, fill=p["quiet"], anchor="middle")
+
+    # arrows Claude -> servers
+    s += f'<line x1="250" y1="155" x2="322" y2="155" stroke="{p["teal"]}" stroke-width="2.5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>\n'
+    s += text(p, 286, 142, "MCP", size=11, weight=700, fill=p["muted"], anchor="middle", ls=1)
+    s += f'<line x1="250" y1="305" x2="322" y2="305" stroke="{p["teal"]}" stroke-width="2.5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>\n'
+    s += text(p, 286, 292, "MCP", size=11, weight=700, fill=p["muted"], anchor="middle", ls=1)
+    # servers -> files
+    s += f'<line x1="590" y1="155" x2="652" y2="155" stroke="{p["teal"]}" stroke-width="2.5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>\n'
+    s += text(p, 621, 142, "read / write", size=11, weight=600, fill=p["muted"], anchor="middle")
+    s += f'<line x1="590" y1="305" x2="652" y2="305" stroke="{p["teal"]}" stroke-width="2.5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>\n'
+    s += text(p, 621, 292, "read / write", size=11, weight=600, fill=p["muted"], anchor="middle")
+    # files -> sync
+    s += arrow(p, [(860, 148), (952, 148)], color=p["teal"], sw=2.5)
+    s += text(p, 906, 136, "syncs", size=11, weight=600, fill=p["muted"], anchor="middle")
+    s += arrow(p, [(860, 300), (952, 300)], color=p["teal"], sw=2.5)
+    s += text(p, 906, 288, "commits", size=11, weight=600, fill=p["muted"], anchor="middle")
+    s += text(p, 906, 318, "every 15 min", size=10.5, fill=p["quiet"], anchor="middle")
+    s += text(p, 906, 226, "or", size=11, weight=700, fill=p["quiet"], anchor="middle")
+    s += f'<line x1="906" y1="160" x2="906" y2="212" stroke="{p["quiet"]}" stroke-width="1.5" stroke-dasharray="2 6" stroke-linecap="round"/>\n'
+    s += f'<line x1="906" y1="236" x2="906" y2="284" stroke="{p["quiet"]}" stroke-width="1.5" stroke-dasharray="2 6" stroke-linecap="round"/>\n'
+
+    # family band
+    s += eyebrow(p, 460, 468, "Optional, shared with family", anchor="middle")
+    s += box(p, 330, 486, 530, 96, dash="8 6", halftone=False)
+    s += text(p, 348, 516, "Kennedy Family Docs/Claude/Family Memory/", size=13, weight=600, mono=True)
+    s += text(p, 348, 538, "A shared iCloud folder both partners' Claudes read before answering", size=12, fill=p["muted"])
+    s += text(p, 348, 556, "family questions: insurance, house, pets, shared money. Markdown, append-only log.", size=12, fill=p["muted"])
+    s += arrow(p, [(145, 320), (145, 534), (322, 534)], color=p["teal"], dash="6 6", sw=2.5)
+    s += text(p, 232, 522, "routed by CLAUDE.md", size=11, weight=600, fill=p["muted"], anchor="middle")
+
+    s += "</svg>\n"
+    return s
+
+
+# ────────────────────────────────────────────────────────────────────────────────
+def datalives(p):
+    W, H = 1200, 520
+    s = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" role="img" aria-label="Where your memory goes: it is stored on your Mac as plain files, synced by your own iCloud or private GitHub account, and sent to Anthropic with each conversation the same as anything you type. There is no Kam Studios server; nothing phones home.">\n'
+    s += defs(p)
+    s += f'<rect width="{W}" height="{H}" fill="{p["bg"]}"/>\n'
+    cy = 262
+    s += f'<circle cx="190" cy="{cy}" r="128" fill="{p["sage"]}"/>\n'
+    s += f'<circle cx="190" cy="{cy}" r="128" fill="url(#dots)"/>\n'
+    s += mascot(p, 190, cy - 6, scale=0.66)
+    s += eyebrow(p, 190, cy + 186, "Your memory", anchor="middle")
+
+    cols = [
+        (40, "Your Mac", "stored as", "Plain files you can open, read, or edit any time.",
+         "Delete a line to forget it. Delete the file to start over."),
+        (150, "Your accounts", "synced by", "iCloud Drive by default, or a private GitHub repo you own.",
+         "Nobody else has a login. Not even Kam Studios."),
+        (260, "Anthropic, with each conversation", "sent with", "The same as anything you type into Claude. Your plan's",
+         "data policy is the one that applies, and it is the only third party."),
+    ]
+    for y, title, lbl, l1, l2 in cols:
+        s += box(p, 440, y, 480, 96)
+        s += text(p, 460, y + 30, title, size=16, weight=600)
+        s += text(p, 460, y + 54, l1, size=12.5, fill=p["muted"])
+        s += text(p, 460, y + 72, l2, size=12.5, fill=p["muted"])
+        x0, y0, x1, y1 = 330, cy, 432, y + 48
+        s += arrow(p, [(x0, y0), (x1, y1)], color=p["teal"], sw=2.5)
+        t = 0.62
+        s += text(p, x0 + (x1 - x0) * t, y0 + (y1 - y0) * t + 4, lbl, size=11, weight=700, fill=p["muted"], anchor="middle", halo=True)
+
+    # the row that does not exist
+    y = 370
+    s += box(p, 440, y, 480, 96, fill="none", stroke=p["ghost"], dash="7 7", halftone=False, sw=2)
+    s += text(p, 460, y + 30, "A Kam Studios server", size=16, weight=600, fill=p["ghost"])
+    s += text(p, 460, y + 54, "Does not exist. Nothing phones home, nothing is collected,", size=12.5, fill=p["ghost"])
+    s += text(p, 460, y + 72, "and the code that proves it is the code in this repo.", size=12.5, fill=p["ghost"])
+    x0, y0, x1, y1 = 330, cy, 400, y + 48
+    s += f'<line x1="{x0}" y1="{y0}" x2="{x1}" y2="{y1}" stroke="{p["ghost"]}" stroke-width="2" stroke-dasharray="3 8" stroke-linecap="round" opacity="0.8"/>\n'
+    s += f'<circle cx="{x1+12}" cy="{y1+8}" r="11" fill="{p["bg"]}" stroke="{p["rust"]}" stroke-width="2.5"/>\n'
+    s += f'<line x1="{x1+5}" y1="{y1+1}" x2="{x1+19}" y2="{y1+15}" stroke="{p["rust"]}" stroke-width="2.5" stroke-linecap="round"/>\n'
+    s += text(p, x0 + (x1 - x0) * 0.5, y0 + (y1 - y0) * 0.5 - 8, "never", size=11, weight=700, fill=p["rust"], anchor="middle", halo=True)
+    s += "</svg>\n"
+    return s
+
+
+def person(p, cx, cy, label):
+    g = f'<circle cx="{cx}" cy="{cy-26}" r="20" fill="{p["card"]}" stroke="{p["line"]}" stroke-width="4"/>\n'
+    g += f'<path d="M{cx-38},{cy+34} a38,38 0 0 1 76,0 z" fill="{p["card"]}" stroke="{p["line"]}" stroke-width="4"/>\n'
+    g += f'<circle cx="{cx-7}" cy="{cy-30}" r="2.6" fill="{p["ink"]}"/><circle cx="{cx+7}" cy="{cy-30}" r="2.6" fill="{p["ink"]}"/>\n'
+    g += f'<path d="M{cx-7},{cy-19} q7,6 14,0" fill="none" stroke="{p["line"]}" stroke-width="2.5" stroke-linecap="round"/>\n'
+    g += text(p, cx, cy + 62, label, size=13, weight=600, anchor="middle")
+    return g
+
+
+def panels(p, W):
+    s = box(p, 40, 70, 400, 250)
+    s += eyebrow(p, 66, 104, "Work")
+    s += text(p, 66, 138, "The company's Claude", size=20, weight=300)
+    s += text(p, 66, 164, "Managed and locked down by IT. Outlook, Teams,", size=12.5, fill=p["muted"])
+    s += text(p, 66, 182, "board material, deals. Everything here stays here.", size=12.5, fill=p["muted"])
+    x = 66
+    for lbl in ("Outlook", "company data", "IT policy"):
+        out, w = pill(p, x, 210, lbl, fill=p["card2"]); s += out; x += w + 8
+    s += f'<path d="M382,100 a14,14 0 0 1 28,0 v10" fill="none" stroke="{p["line"]}" stroke-width="3.5"/>\n'
+    s += f'<rect x="374" y="108" width="44" height="34" rx="7" fill="{p["card2"]}" stroke="{p["line"]}" stroke-width="3.5"/>\n'
+
+    s += box(p, W - 440, 70, 400, 250)
+    s += eyebrow(p, W - 414, 104, "Personal")
+    s += text(p, W - 414, 138, "Your own Claude", size=20, weight=300)
+    s += text(p, W - 414, 164, "A personal Mac and a personal account.", size=12.5, fill=p["muted"])
+    s += text(p, W - 414, 182, "Your memory, your assistant, Persona.", size=12.5, fill=p["muted"])
+    x = W - 414
+    for lbl in ("your memory", "your assistant", "Persona"):
+        out, w = pill(p, x, 210, lbl, fill=p["card2"]); s += out; x += w + 8
+    s += mascot(p, W - 96, 116, scale=0.20, face=True)
+    return s
+
+
+def boundary(p):
+    W, H = 1200, 400
+    s = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" role="img" aria-label="Two separate Claudes: one managed by the company IT team, and your own, on a personal Mac. Nothing connects them. You are the bridge, carrying context by hand.">\n'
+    s += defs(p)
+    s += f'<rect width="{W}" height="{H}" fill="{p["bg"]}"/>\n'
+    s += panels(p, W)
+    s += f'<line x1="600" y1="40" x2="600" y2="360" stroke="{p["quiet"]}" stroke-width="2" stroke-dasharray="4 10" stroke-linecap="round"/>\n'
+    s += person(p, 600, 190, "you")
+    s += arrow(p, [(440, 150), (556, 168)], color=p["ink"], marker="arrowInk", dash="6 6", sw=2)
+    s += text(p, 498, 146, "what you learned at work", size=11, weight=600, fill=p["muted"], anchor="middle", halo=True)
+    s += arrow(p, [(644, 168), (756, 150)], color=p["ink"], marker="arrowInk", dash="6 6", sw=2)
+    s += text(p, 702, 146, "what you choose to tell it", size=11, weight=600, fill=p["muted"], anchor="middle", halo=True)
+    s += text(p, 600, 352, "no wire between them. you carry context by hand.", size=12, weight=600, fill=p["muted"], anchor="middle", halo=True)
+    s += "</svg>\n"
+    return s
+
+
+def bridge(p):
+    W, H = 1200, 520
+    s = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" role="img" aria-label="Later, with IT at the table: a one-way bridge. IT owns an allowlist gate on the work side. Approved categories land in a receiving folder on the personal side, you approve each item, and only then does your assistant see it. Nothing flows back.">\n'
+    s += defs(p)
+    s += f'<rect width="{W}" height="{H}" fill="{p["bg"]}"/>\n'
+    s += panels(p, W)
+    s += person(p, 600, 190, "you")
+    # the bridge along the bottom
+    y = 420
+    s += arrow(p, [(240, 320), (240, y), (322, y)], color=p["teal"], sw=3)
+    s += f'<rect x="330" y="{y-30}" width="180" height="60" rx="12" fill="{p["rustwash"]}" stroke="{p["rust"]}" stroke-width="3"/>\n'
+    s += text(p, 420, y - 6, "ALLOWLIST GATE", size=11, weight=700, fill=p["rust"], anchor="middle", ls=1.5)
+    s += text(p, 420, y + 14, "built and owned by IT", size=11, fill=p["muted"], anchor="middle")
+    s += arrow(p, [(510, y), (582, y)], color=p["teal"], sw=3)
+    s += f'<rect x="590" y="{y-30}" width="170" height="60" rx="12" fill="{p["card"]}" stroke="{p["line"]}" stroke-width="3"/>\n'
+    s += text(p, 675, y - 6, "RECEIVING LANE", size=11, weight=700, fill=p["ink"], anchor="middle", ls=1.5)
+    s += text(p, 675, y + 14, "a folder on your side", size=11, fill=p["muted"], anchor="middle")
+    s += arrow(p, [(760, y), (832, y)], color=p["teal"], sw=3)
+    s += f'<rect x="840" y="{y-30}" width="150" height="60" rx="12" fill="{p["tealwash"]}" stroke="{p["teal"]}" stroke-width="3"/>\n'
+    s += text(p, 915, y - 6, "YOU APPROVE", size=11, weight=700, fill=p["teal"], anchor="middle", ls=1.5)
+    s += text(p, 915, y + 14, "each item, every time", size=11, fill=p["muted"], anchor="middle")
+    s += arrow(p, [(990, y), (1060, y), (1060, 328)], color=p["teal"], sw=3)
+    s += text(p, 600, 486, "one way. only what is already public or purely logistical. nothing flows back.", size=12, weight=600, fill=p["muted"], anchor="middle", halo=True)
+    s += text(p, 275, 372, "only", size=11, weight=700, fill=p["teal"], anchor="middle", halo=True)
+    s += text(p, 275, 388, "allowed", size=11, weight=700, fill=p["teal"], anchor="middle", halo=True)
+    s += text(p, 275, 404, "categories", size=11, weight=700, fill=p["teal"], anchor="middle", halo=True)
+    s += "</svg>\n"
+    return s
+
+
+def dayflow(p):
+    W, H = 1200, 330
+    s = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" role="img" aria-label="A day with your assistant: a morning brief lands in your Discord at 6:30, you reply from your phone during the day, it acts inside the rules you set and flags everything else, and an evening digest closes the loop. A needs-you list carries anything waiting on you.">\n'
+    s += defs(p)
+    s += f'<rect width="{W}" height="{H}" fill="{p["bg"]}"/>\n'
+    y = 150
+    s += f'<line x1="80" y1="{y}" x2="1120" y2="{y}" stroke="{p["line"]}" stroke-width="3" stroke-linecap="round"/>\n'
+    stops = [
+        (170, "6:30 AM", "The brief", "What today holds, what is overdue,", "what needs you. Posted to your Discord."),
+        (450, "During the day", "You reply from your phone", "Log a thing, ask a question,", "give a decision. One line is enough."),
+        (730, "Right after", "It acts, or it flags", "Inside the rules you wrote: acts.", "Anything that sends, spends, or deletes: asks."),
+        (1010, "8:00 PM", "The digest", "What moved, what did not,", "what is waiting on you tomorrow."),
+    ]
+    for i, (x, when, title, l1, l2) in enumerate(stops):
+        accent = i == 2
+        s += f'<circle cx="{x}" cy="{y}" r="18" fill="{p["rust"] if accent else p["card"]}" stroke="{p["line"]}" stroke-width="4"/>\n'
+        s += eyebrow(p, x, y - 40, when, anchor="middle")
+        s += text(p, x, y + 52, title, size=15, weight=600, anchor="middle")
+        s += text(p, x, y + 74, l1, size=12, fill=p["muted"], anchor="middle")
+        s += text(p, x, y + 90, l2, size=12, fill=p["muted"], anchor="middle")
+    # phone chip at stop 2
+    s += f'<rect x="{450-16}" y="{y-112}" width="32" height="52" rx="8" fill="{p["card"]}" stroke="{p["line"]}" stroke-width="3"/>\n'
+    s += f'<line x1="{450-6}" y1="{y-68}" x2="{450+6}" y2="{y-68}" stroke="{p["line"]}" stroke-width="2.5" stroke-linecap="round"/>\n'
+    # needs-you list
+    out, w = pill(p, 60, 268, "needs you: a running list it keeps, so nothing waiting on you gets lost", fill=p["tealwash"], stroke=p["teal"], color=p["teal"], h=30, size=11.5)
+    s += out
+    s += "</svg>\n"
+    return s
+
+
+FIGS = {"hero": hero, "architecture": architecture, "where-your-data-lives": datalives,
+        "boundary": boundary, "bridge": bridge, "dayflow": dayflow}
+ONLY = os.environ.get("THEMES")
+for name, fn in FIGS.items():
+    for theme, pal in THEMES.items():
+        if ONLY and theme not in ONLY.split(","): continue
+        path = os.path.join(OUT, f"{name}-{theme}.svg")
+        with open(path, "w") as f:
+            f.write(fn(pal))
+        print(path, os.path.getsize(path))

@@ -13,8 +13,8 @@ Claude forgets everything when a conversation ends. This gives it a memory that 
 who you are, what you are working on, what you decided last week, in your words.
 
 The memory is a folder of plain text files on your Mac. You can open them. You can edit them.
-You can delete a line and Claude forgets that one thing. There is no account to create with
-Kam Studios and no server in the middle. The files sync through accounts you already own:
+You can delete a line and Claude forgets that one thing. There is no account to create
+and no server in the middle. The files sync through accounts you already own:
 iCloud Drive by default, or a private GitHub repo if you want version history and a backup.
 
 One honest caveat. When Claude uses your memory, the relevant parts travel with the

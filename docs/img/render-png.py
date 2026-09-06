@@ -76,7 +76,7 @@ h1{{position:absolute;left:92px;top:170px;margin:0;font-weight:300;font-size:92p
 .stage svg{{position:absolute;inset:0}}
 .stage img{{position:absolute;left:128px;top:44px;height:470px}}
 </style></head><body>
-<div class="eyebrow">Kam Studios &nbsp;&middot;&nbsp; open source &nbsp;&middot;&nbsp; Mac</div>
+<div class="eyebrow">open source &nbsp;&middot;&nbsp; macOS &nbsp;&middot;&nbsp; MIT</div>
 <h1>Memory that<br>stays yours.</h1>
 <div class="sub">Persistent memory for Claude. Plain files on your Mac, synced through accounts you already own, no server in the middle.</div>
 <div class="pills"><span class="pill">search-first reads</span><span class="pill">private git sync</span><span class="pill rust">scan before push</span></div>

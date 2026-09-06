@@ -10,7 +10,7 @@
     <path d="M0,0 L10,5 L0,10 z" fill="#1E2A38"/>
   </marker>
 </defs><rect width="1200" height="420" fill="#F2EBDD"/>
-<text x="72" y="112" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#8A8F8B" text-anchor="start" letter-spacing="2.2" opacity="1">KAM STUDIOS  ·  OPEN SOURCE  ·  MAC</text>
+<text x="72" y="112" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#8A8F8B" text-anchor="start" letter-spacing="2.2" opacity="1">OPEN SOURCE  ·  MACOS  ·  MIT</text>
 <text x="70" y="188" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="66" font-weight="300" fill="#1E2A38" text-anchor="start" letter-spacing="-2" opacity="1">Memory that</text>
 <text x="70" y="254" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="66" font-weight="300" fill="#1E2A38" text-anchor="start" letter-spacing="-2" opacity="1">stays yours.</text>
 <text x="72" y="300" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#5C605D" text-anchor="start" letter-spacing="0" opacity="1">Persistent memory for Claude. Plain files on your Mac,</text>

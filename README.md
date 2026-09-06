@@ -111,6 +111,51 @@ server until they restart, which is safe: both read and write the same file in t
 
 ---
 
+## Keeping memory in git (v1.7.0+)
+
+Memory can live in a private GitHub repo instead of a sync folder — versioned, reachable from any
+machine, and safe for two people to write at once.
+
+```
+npx setup-claude-memory@latest --git
+```
+
+It signs you in to GitHub in the browser, checks your memory for credentials, creates a **private**
+repo, and syncs it every 15 minutes. You never type a git command, and your original folder is
+renamed rather than deleted.
+
+Conflicts resolve themselves. A semantic merge driver merges by meaning — entities by name,
+observations as a proper three-way set — so two machines writing at the same time do not produce a
+conflict to clear. Git's own options are both wrong here: its text merge leaves conflict markers
+that make the file unparseable, and `merge=union` duplicates entity lines into a corrupt graph.
+
+**Repo locations that sync are refused, not warned about.** iCloud corrupts git's internals and
+Dropbox rewrites timestamps, both silently. Note that `~/Documents` and `~/Desktop` are iCloud-backed
+whenever macOS "Desktop & Documents Folders" sync is on — a common default that nothing in the path
+reveals — so the installer probes for it rather than trusting the path.
+
+### Check for credentials at any time
+
+```
+npx setup-claude-memory@latest --scan
+```
+
+Credentials block; personal data (phone numbers, emails, ids) is reported but never blocks — that is
+what a memory of your own life contains, and the control for it is that the repo is private. Findings
+are always redacted.
+
+### Archive finished work (v1.9.0+)
+
+```
+npx setup-claude-memory@latest --compact
+```
+
+Proposes finished status notes to move to an archive entity, grouped by why, approved by you.
+**Nothing is ever deleted** — archived observations stay searchable, and in git every pass is
+revertable. Anything holding the last copy of an identifier is flagged and never bulk-approved.
+
+---
+
 ## Your memory file
 
 All memories live here — you can open, read, or edit it anytime:

@@ -237,4 +237,4 @@ moves outside iCloud and the installer tells you where.
 
 ---
 
-Made by [Kam Studios](https://kamstudios.com). MIT licensed.
+MIT licensed.

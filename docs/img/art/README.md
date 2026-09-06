@@ -2,7 +2,7 @@
 
 The repo's character: an index card with a face, a terracotta tab, three teal observation
 lines, rubber-hose arms, white gloves, sneakers, and a teal padlock. Same object-with-a-face
-logic as the other Kam Studios assistants. The vector original is `mascot()` in
+logic as the other assistants in this design language. The vector original is `mascot()` in
 [`../build-figures.py`](../build-figures.py); these are the drawn versions, made in Higgsfield
 (Nano Banana Pro) from that SVG plus two style references, 2026-09-06.
 

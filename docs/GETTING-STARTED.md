@@ -123,5 +123,5 @@ outside iCloud and syncs to GitHub every fifteen minutes on its own.
 | Terminal says `npx: command not found` | Install Node.js from [nodejs.org](https://nodejs.org). |
 | You want to start over | Delete the `Claude Memory` folder in iCloud Drive. Run the install again. |
 
-Made by [Kam Studios](https://kamstudios.com). The code is public at
+The code is public at
 [github.com/kamrenkennedy/setup-claude-memory](https://github.com/kamrenkennedy/setup-claude-memory).

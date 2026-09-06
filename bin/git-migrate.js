@@ -225,6 +225,23 @@ function registerMergeDriver(repo, driverPath) {
 // style, including a future temp-file-plus-rename, because the rename then happens
 // inside the real target directory.
 function createBridge(oldPath, newPath) {
+  // The old path may already BE a bridge symlink synced here from another Mac — and on
+  // a machine with a different username it dangles, since it names an absolute path that
+  // cannot exist. Replace it rather than parking a broken link as if it were data.
+  let existing = null;
+  try { existing = fs.lstatSync(oldPath); } catch { /* nothing there at all */ }
+
+  if (existing && existing.isSymbolicLink()) {
+    fs.unlinkSync(oldPath);
+    fs.symlinkSync(newPath, oldPath);
+    return null;  // nothing was parked, because nothing real was there
+  }
+
+  if (!existing) {
+    fs.symlinkSync(newPath, oldPath);
+    return null;
+  }
+
   const parked = `${oldPath}.migrated-${new Date().toISOString().slice(0, 10)}`;
   fs.renameSync(oldPath, parked);
   fs.symlinkSync(newPath, oldPath);
@@ -321,6 +338,8 @@ function cloneMemoryRepo(name, dest) {
 function observationsMissingFromRepo(localStoreDir, repoDir) {
   const read = (dir) => {
     const f = path.join(dir, 'memory.jsonl');
+    // existsSync follows symlinks, so a dangling bridge reads as absent — which is
+    // exactly right: there is no local memory here to compare.
     if (!fs.existsSync(f)) return null;
     const map = new Map();
     for (const line of fs.readFileSync(f, 'utf8').split('\n')) {

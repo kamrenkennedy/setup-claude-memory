@@ -341,5 +341,42 @@ console.log('\n=== 12. Unsynced local memory is reported, not silently parked ==
   fs.rmSync(base, { recursive: true, force: true });
 }
 
+// ─── 13. The dangling bridge a second Mac inherits ───────────────────────────
+console.log('\n=== 13. A bridge symlink synced from another Mac is replaced, not parked ===');
+{
+  // Real case, 2026-09-06: Kam's Macs have DIFFERENT usernames (kamren vs kamrenkennedy),
+  // so the bridge symlink left in iCloud by the first Mac names an absolute path that
+  // cannot exist on the second. iCloud syncs it, and it dangles there.
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'aim-inherit-'));
+  const repo = path.join(base, 'repo');
+  fs.mkdirSync(repo);
+  fs.writeFileSync(path.join(repo, 'memory.jsonl'), '{"type":"_aim","source":"mcp-knowledge-graph"}');
+  const oldPath = path.join(base, 'Claude Memory');
+  fs.symlinkSync('/Users/adifferentuser/Developer/claude-memory', oldPath);
+
+  ok('the inherited link dangles', !fs.existsSync(oldPath) && fs.lstatSync(oldPath).isSymbolicLink());
+  ok('so a divergence check finds nothing to compare',
+     M.observationsMissingFromRepo(oldPath, repo).comparable === false);
+
+  const parked = M.createBridge(oldPath, repo);
+  ok('nothing is parked — a broken link is not data', parked === null, String(parked));
+  ok('and the path now resolves to this Mac\'s repo',
+     fs.existsSync(oldPath) && fs.readlinkSync(oldPath) === repo);
+
+  // A REAL folder must still be parked, not clobbered.
+  const realPath = path.join(base, 'Real Memory');
+  fs.mkdirSync(realPath);
+  fs.writeFileSync(path.join(realPath, 'memory.jsonl'), 'irreplaceable');
+  const parked2 = M.createBridge(realPath, repo);
+  ok('a real folder IS parked', typeof parked2 === 'string' && fs.existsSync(parked2));
+  ok('and its contents survive', fs.readFileSync(path.join(parked2, 'memory.jsonl'), 'utf8') === 'irreplaceable');
+
+  // Nothing there at all is fine too.
+  const fresh = path.join(base, 'Nothing Here');
+  ok('a missing path just gets linked', M.createBridge(fresh, repo) === null && fs.existsSync(fresh));
+
+  fs.rmSync(base, { recursive: true, force: true });
+}
+
 console.log(`\n${fail === 0 ? 'ALL PASS' : 'FAILURES'} — ${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);

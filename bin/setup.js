@@ -749,14 +749,7 @@ async function runGitMigration({ config, serverName, memoryPath }) {
   const account = gm.checkGitPrereqs().ghUser;
   console.log(chalk.green(`✓ Signed in to GitHub${account ? ` as ${account}` : ''}\n`));
 
-  // 2. The credential gate, BEFORE anything is created. Git history is permanent.
-  console.log(chalk.bold('Checking your memory for credentials...\n'));
-  if (!runScan(memoryPath)) {
-    console.log(chalk.red('✗ Stopping. Rotate anything real, remove it from your memory, then run this again.\n'));
-    process.exit(1);
-  }
-
-  // 3. Where the repo lives. Refuse synced locations rather than warning about them.
+  // 2. Where the repo lives. Refuse synced locations rather than warning about them.
   const suggested = gm.defaultRepoLocation();
   let repoPath;
   for (;;) {
@@ -775,10 +768,27 @@ async function runGitMigration({ config, serverName, memoryPath }) {
     validate: v => /^[A-Za-z0-9._-]+$/.test(v.trim()) || 'Letters, numbers, dots, dashes and underscores only',
   }]);
 
-  // Second machine: the repo already exists, so JOIN it rather than trying to create
-  // and push a divergent history.
+  // Decide JOIN vs CREATE *before* the credential gate. The gate protects the first
+  // push of a store; on a second machine nothing local is being pushed, and that
+  // machine's old path is often a dangling bridge symlink from the first Mac — scanning
+  // it would abort a join that is perfectly safe. (Kam's Macs have different usernames,
+  // so the synced bridge can never resolve on the second one.)
   if (gm.repoExistsOnAccount(repoName)) {
     return runGitJoin({ repoName, repoPath, memoryPath, account, firstName });
+  }
+
+  // 3. The credential gate, before anything is created. Git history is permanent.
+  if (!fs.existsSync(memoryPath)) {
+    console.log(chalk.red(`\n✗ Your memory folder is missing: ${memoryPath}`));
+    console.log('  Nothing to migrate. If this Mac should join an existing memory repo, re-run and');
+    console.log('  give the name of the repo you already created.\n');
+    process.exit(1);
+  }
+  console.log('');
+  console.log(chalk.bold('Checking your memory for credentials...\n'));
+  if (!runScan(memoryPath)) {
+    console.log(chalk.red('✗ Stopping. Rotate anything real, remove it from your memory, then run this again.\n'));
+    process.exit(1);
   }
 
   console.log('');
@@ -908,6 +918,15 @@ async function runGitJoin({ repoName, repoPath, memoryPath, account, firstName }
     gm.registerMergeDriver(repoPath, path.join(__dirname, 'memory-merge-driver.mjs'));
   });
 
+  // Scan what actually came down, rather than this machine's old folder. Cheap, and it
+  // catches anything the first Mac let through.
+  console.log('');
+  console.log(chalk.bold('  Checking the repo for credentials...\n'));
+  if (!runScan(repoPath)) {
+    console.log(chalk.red('  ✗ The repo contains a credential. Fix it on the Mac that pushed it, then re-run.\n'));
+    process.exit(1);
+  }
+
   // Anything this Mac wrote locally that never reached the repo would be lost by a
   // silent swap. Say so instead.
   let divergence = { comparable: false, entities: [], total: 0 };
@@ -917,6 +936,9 @@ async function runGitJoin({ repoName, repoPath, memoryPath, account, firstName }
 
   let parked;
   step('4. Linking this Mac to the repo...         ', () => { parked = gm.createBridge(memoryPath, repoPath); });
+  if (parked === null) {
+    console.log(chalk.dim('     (the old path was already a link from another Mac — replaced, nothing parked)'));
+  }
 
   step('5. Scheduling background sync...           ', () => {
     const dir = path.join(homeDir, 'Library', 'Application Support', 'claude-memory-sync');
@@ -935,7 +957,7 @@ async function runGitJoin({ repoName, repoPath, memoryPath, account, firstName }
   console.log(chalk.bold.green('✅  This Mac is on your shared memory.\n'));
   console.log(`  Repo    : ${chalk.cyan(`${account || ''}/${repoName}`)}`);
   console.log(`  Local   : ${chalk.cyan(repoPath)}`);
-  console.log(`  Original: ${chalk.dim(parked)} ${chalk.dim('(kept)')}`);
+  if (parked) console.log(`  Original: ${chalk.dim(parked)} ${chalk.dim('(kept)')}`);
   console.log(`  Syncing : every 15 min\n`);
 
   if (divergence.comparable && divergence.total > 0) {

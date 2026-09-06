@@ -1,6 +1,6 @@
 {
   "name": "setup-claude-memory",
-  "version": "1.6.2",
+  "version": "1.7.0",
   "description": "Interactive CLI to set up Claude persistent memory via iCloud \u2014 knowledge graph with search-first reads + deep context archive with semantic search, powered by MCP",
   "bin": {
     "setup-claude-memory": "bin/setup.js",
@@ -11,10 +11,11 @@
   },
   "scripts": {
     "start": "node ./bin/setup.js",
-    "test": "npm run test:server && npm run test:merge && npm run test:scan",
+    "test": "npm run test:server && npm run test:merge && npm run test:scan && npm run test:git",
     "test:server": "node test/memory-server.test.mjs",
     "test:merge": "node test/merge-driver.test.mjs",
-    "test:scan": "node test/memory-scan.test.mjs"
+    "test:scan": "node test/memory-scan.test.mjs",
+    "test:git": "node test/git-migrate.test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -46,6 +47,7 @@
     "bin/memory-server.mjs",
     "bin/memory-merge-driver.mjs",
     "bin/memory-scan.mjs",
+    "bin/git-migrate.js",
     "bin/apple-embed.swift",
     "templates/**",
     "package.json",

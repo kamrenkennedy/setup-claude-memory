@@ -5,7 +5,8 @@ const chalk         = require('chalk');
 const os            = require('os');
 const fs            = require('fs');
 const path          = require('path');
-const { execSync }  = require('child_process');
+const { execSync, spawnSync }  = require('child_process');
+const gm            = require('./git-migrate');
 
 const homeDir       = os.homedir();
 const ICLOUD_BASE   = path.join(homeDir, 'Library', 'Mobile Documents', 'com~apple~CloudDocs');
@@ -182,6 +183,23 @@ function setupClaudeMd(icloudClaudeDir) {
 async function main() {
   const argv = process.argv.slice(2);
   const familyOnly = argv.includes('--family');
+  const gitMode    = argv.includes('--git');
+  const scanOnly   = argv.includes('--scan');
+
+  if (scanOnly || gitMode) {
+    const errs = checkPrerequisites();
+    if (errs.length) { errs.forEach(e => console.log(chalk.red(`✗ ${e}`))); process.exit(1); }
+    let cfg;
+    try { cfg = loadClaudeConfig(); } catch (err) { console.log(chalk.red(`✗ ${err.message}`)); process.exit(1); }
+    const found = detectFromClaudeConfig(cfg.mcpServers || {});
+    if (!found) {
+      console.log(chalk.red('\n✗ No memory setup found on this machine. Run `npx setup-claude-memory@latest` first.\n'));
+      process.exit(1);
+    }
+    if (scanOnly) { process.exit(runScan(found.memoryPath) ? 0 : 1); }
+    await runGitMigration({ config: cfg, ...found });
+    return;
+  }
 
   if (familyOnly) {
     console.log(chalk.bold.cyan('\n👪  Family Memory Setup\n'));
@@ -567,6 +585,182 @@ function readUserConfig(configPath) {
   if (!fs.existsSync(configPath)) return null;
   try { return JSON.parse(fs.readFileSync(configPath, 'utf8')); }
   catch { return null; }
+}
+
+// ─── git migration (--git) ───────────────────────────────────────────────────
+
+// Run the credential gate. Returns true when it is safe to push.
+function runScan(storePath) {
+  const scanner = path.join(__dirname, 'memory-scan.mjs');
+  const r = spawnSync('node', [scanner, storePath], { stdio: 'inherit' });
+  return r.status === 0;
+}
+
+async function runGitMigration({ config, serverName, memoryPath }) {
+  const firstName = serverName.replace(/-Memory$/i, '');
+  console.log(chalk.bold.cyan('\n📦  Move your memory into a private git repo\n'));
+  console.log(`  Store : ${chalk.cyan(memoryPath)}\n`);
+
+  // 1. Prerequisites. gh auth is the one step only the user can do.
+  const pre = gm.checkGitPrereqs();
+  if (!pre.git) {
+    console.log(chalk.red('✗ git is not installed. Install the Xcode command line tools:\n    xcode-select --install\n'));
+    process.exit(1);
+  }
+  if (!pre.gh) {
+    console.log(chalk.red('✗ The GitHub CLI (gh) is not installed.\n'));
+    console.log('  It handles signing in and creating the private repo for you.\n');
+    console.log(`  Install it from ${chalk.cyan('https://cli.github.com')} — the .pkg installer needs no`);
+    console.log('  Homebrew — then run this again.\n');
+    process.exit(1);
+  }
+  if (!pre.ghAuthed) {
+    console.log(chalk.yellow('!  You are not signed in to GitHub yet.\n'));
+    console.log('  This opens your browser and asks you to authorize. Nothing is typed here.\n');
+    const { doAuth } = await inquirer.prompt([{ type: 'confirm', name: 'doAuth', message: 'Sign in to GitHub now?', default: true }]);
+    if (!doAuth) { console.log(chalk.yellow('\nCancelled.\n')); process.exit(0); }
+    const r = spawnSync('gh', ['auth', 'login', '--web', '--git-protocol', 'https'], { stdio: 'inherit' });
+    if (r.status !== 0 || !gm.checkGitPrereqs().ghAuthed) {
+      console.log(chalk.red('\n✗ Sign-in did not complete. Run `gh auth login` yourself, then re-run this.\n'));
+      process.exit(1);
+    }
+  }
+  const account = gm.checkGitPrereqs().ghUser;
+  console.log(chalk.green(`✓ Signed in to GitHub${account ? ` as ${account}` : ''}\n`));
+
+  // 2. The credential gate, BEFORE anything is created. Git history is permanent.
+  console.log(chalk.bold('Checking your memory for credentials...\n'));
+  if (!runScan(memoryPath)) {
+    console.log(chalk.red('✗ Stopping. Rotate anything real, remove it from your memory, then run this again.\n'));
+    process.exit(1);
+  }
+
+  // 3. Where the repo lives. Refuse synced locations rather than warning about them.
+  const suggested = gm.defaultRepoLocation();
+  let repoPath;
+  for (;;) {
+    const { where } = await inquirer.prompt([{
+      type: 'input', name: 'where', message: 'Folder for the repo:', default: suggested,
+    }]);
+    const candidate = path.resolve(where.trim().replace(/^~/, homeDir));
+    const problem = gm.unsafeRepoLocation(candidate);
+    if (!problem) { repoPath = candidate; break; }
+    console.log(chalk.red(`\n  ✗ ${problem}\n`));
+  }
+
+  const { repoName } = await inquirer.prompt([{
+    type: 'input', name: 'repoName', message: 'Private repo name:',
+    default: `${firstName.toLowerCase()}-claude-memory`,
+    validate: v => /^[A-Za-z0-9._-]+$/.test(v.trim()) || 'Letters, numbers, dots, dashes and underscores only',
+  }]);
+
+  console.log('');
+  console.log(chalk.bold('About to:'));
+  console.log(`  • copy your memory to ${chalk.cyan(repoPath)}`);
+  console.log(`  • create ${chalk.cyan(`${account || 'you'}/${repoName}`)} as a ${chalk.bold('PRIVATE')} repo and push`);
+  console.log(`  • leave a link at the old location so nothing breaks mid-session`);
+  console.log(`  • sync in the background every 15 minutes\n`);
+  console.log(chalk.dim('  Your original folder is kept, renamed, not deleted.\n'));
+  const { go } = await inquirer.prompt([{ type: 'confirm', name: 'go', message: 'Proceed?', default: true }]);
+  if (!go) { console.log(chalk.yellow('\nCancelled — nothing changed.\n')); process.exit(0); }
+  console.log('');
+
+  // 4. Copy, then PROVE the copy before anything destructive happens.
+  let hashes;
+  step('1. Copying your memory...                  ', () => {
+    hashes = gm.fileHashes(memoryPath);
+    gm.copyTree(memoryPath, repoPath);
+  });
+  step('2. Verifying every file byte-for-byte...    ', () => {
+    const v = gm.verifyCopy(hashes, repoPath);
+    if (v.mismatched.length) throw new Error(`copy mismatch on ${v.mismatched.length} file(s): ${v.mismatched.slice(0, 3).join(', ')}`);
+    if (!v.checked) throw new Error('copy verified nothing — refusing to continue');
+  });
+
+  step('3. Setting up the repo...                   ', () => {
+    if (!fs.existsSync(path.join(repoPath, '.git'))) gm.git(repoPath, ['init', '-q', '-b', 'main']);
+    fs.writeFileSync(path.join(repoPath, '.gitignore'), gm.GITIGNORE, 'utf8');
+    fs.writeFileSync(path.join(repoPath, '.gitattributes'), gm.GITATTRIBUTES, 'utf8');
+    if (!fs.existsSync(path.join(repoPath, 'README.md'))) {
+      fs.writeFileSync(path.join(repoPath, 'README.md'), gm.repoReadme(firstName), 'utf8');
+    }
+  });
+
+  step('4. Installing the merge driver...           ', () => {
+    gm.registerMergeDriver(repoPath, path.join(__dirname, 'memory-merge-driver.mjs'));
+  });
+
+  step('5. Committing...                            ', () => {
+    gm.git(repoPath, ['add', '-A']);
+    try { gm.git(repoPath, ['diff', '--cached', '--quiet']); }
+    catch { gm.git(repoPath, ['commit', '-q', '-m', 'Move Claude memory into version control']); }
+  });
+
+  step('6. Creating the PRIVATE repo and pushing... ', () => {
+    const exists = spawnSync('gh', ['repo', 'view', repoName], { encoding: 'utf8' }).status === 0;
+    if (!exists) {
+      const r = spawnSync('gh', ['repo', 'create', repoName, '--private', '--source', repoPath, '--push'], { encoding: 'utf8' });
+      if (r.status !== 0) throw new Error(`gh repo create failed: ${(r.stderr || '').trim().split('\n')[0]}`);
+    } else {
+      gm.git(repoPath, ['push', '-u', 'origin', 'main']);
+    }
+  });
+
+  // Never take "it pushed" on trust — confirm GitHub agrees it is private.
+  step('7. Confirming the repo is private...        ', () => {
+    const r = spawnSync('gh', ['repo', 'view', repoName, '--json', 'isPrivate'], { encoding: 'utf8' });
+    if (r.status !== 0) throw new Error('could not read the repo back from GitHub');
+    if (JSON.parse(r.stdout).isPrivate !== true) {
+      throw new Error('THE REPO IS PUBLIC — make it private immediately in GitHub settings');
+    }
+  });
+
+  let parked;
+  step('8. Linking the old location...              ', () => { parked = gm.createBridge(memoryPath, repoPath); });
+
+  step('9. Scheduling background sync...            ', () => {
+    const dir = path.join(homeDir, 'Library', 'Application Support', 'claude-memory-sync');
+    fs.mkdirSync(dir, { recursive: true });
+    const script = path.join(dir, 'sync.sh');
+    const log = path.join(dir, 'sync.log');
+    fs.writeFileSync(script, gm.syncScript(repoPath, log), { mode: 0o755 });
+    const label = 'com.kamstudios.claude-memory-sync';
+    const plist = path.join(homeDir, 'Library', 'LaunchAgents', `${label}.plist`);
+    fs.mkdirSync(path.dirname(plist), { recursive: true });
+    fs.writeFileSync(plist, gm.launchAgentPlist(label, script, 900), 'utf8');
+    spawnSync('launchctl', ['unload', plist], { stdio: 'ignore' });
+    spawnSync('launchctl', ['load', plist], { stdio: 'ignore' });
+  });
+
+  console.log('');
+  console.log(chalk.bold.green('✅  Your memory is in a private git repo.\n'));
+  console.log(`  Repo    : ${chalk.cyan(`${account || ''}/${repoName}`)} ${chalk.dim('(private, verified)')}`);
+  console.log(`  Local   : ${chalk.cyan(repoPath)}`);
+  console.log(`  Original: ${chalk.dim(parked)} ${chalk.dim('(kept — delete it yourself once you are happy)')}`);
+  console.log(`  Syncing : every 15 min\n`);
+  console.log(chalk.bold('Nothing needs changing right now.'));
+  console.log('  The old location now points at the repo, so every session keeps working —');
+  console.log('  running ones included. Config can be updated whenever you like.\n');
+
+  // Report the surfaces this installer does not own, rather than editing them blind.
+  const others = otherConfigSurfaces(memoryPath);
+  if (others.length) {
+    console.log(chalk.yellow('  These files still name the old path. They keep working through the link,'));
+    console.log(chalk.yellow('  but update them when convenient:\n'));
+    others.forEach(f => console.log(`    ${chalk.dim(f)}`));
+    console.log('');
+  }
+}
+
+// Config files this installer does NOT manage, which may carry --memory-path.
+function otherConfigSurfaces(memoryPath) {
+  const candidates = [
+    path.join(homeDir, '.claude.json'),
+    path.join(homeDir, '.codex', 'config.toml'),
+  ];
+  return candidates.filter(f => {
+    try { return fs.readFileSync(f, 'utf8').includes(memoryPath); } catch { return false; }
+  });
 }
 
 // ─── family memory ───────────────────────────────────────────────────────────

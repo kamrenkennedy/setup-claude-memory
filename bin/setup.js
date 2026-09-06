@@ -775,6 +775,12 @@ async function runGitMigration({ config, serverName, memoryPath }) {
     validate: v => /^[A-Za-z0-9._-]+$/.test(v.trim()) || 'Letters, numbers, dots, dashes and underscores only',
   }]);
 
+  // Second machine: the repo already exists, so JOIN it rather than trying to create
+  // and push a divergent history.
+  if (gm.repoExistsOnAccount(repoName)) {
+    return runGitJoin({ repoName, repoPath, memoryPath, account, firstName });
+  }
+
   console.log('');
   console.log(chalk.bold('About to:'));
   console.log(`  • copy your memory to ${chalk.cyan(repoPath)}`);
@@ -868,6 +874,85 @@ async function runGitMigration({ config, serverName, memoryPath }) {
   if (others.length) {
     console.log(chalk.yellow('  These files still name the old path. They keep working through the link,'));
     console.log(chalk.yellow('  but update them when convenient:\n'));
+    others.forEach(f => console.log(`    ${chalk.dim(f)}`));
+    console.log('');
+  }
+}
+
+// Second machine joining an existing memory repo. No migration happens here — the repo
+// IS the store. What matters is that everything a clone does NOT bring gets installed:
+// the merge driver above all, since without it this machine writes conflict markers.
+async function runGitJoin({ repoName, repoPath, memoryPath, account, firstName }) {
+  console.log('');
+  console.log(chalk.bold.green(`✓ Found your existing memory repo: ${account || ''}/${repoName}\n`));
+  console.log('  This machine will JOIN it rather than create a new one.\n');
+  console.log(chalk.bold('About to:'));
+  console.log(`  • clone it to ${chalk.cyan(repoPath)}`);
+  console.log(`  • install the merge driver ${chalk.dim('(a clone does NOT bring this — without it this Mac writes conflict markers)')}`);
+  console.log(`  • point this Mac's memory at the repo, and sync every 15 minutes`);
+  console.log(`  • keep this Mac's current memory folder, renamed\n`);
+
+  const { go } = await inquirer.prompt([{ type: 'confirm', name: 'go', message: 'Proceed?', default: true }]);
+  if (!go) { console.log(chalk.yellow('\nCancelled — nothing changed.\n')); process.exit(0); }
+  console.log('');
+
+  step('1. Cloning your memory repo...             ', () => {
+    if (fs.existsSync(path.join(repoPath, '.git'))) {
+      gm.git(repoPath, ['pull', '--rebase', '--autostash']);
+    } else {
+      gm.cloneMemoryRepo(repoName, repoPath);
+    }
+  });
+
+  step('2. Installing the merge driver...          ', () => {
+    gm.registerMergeDriver(repoPath, path.join(__dirname, 'memory-merge-driver.mjs'));
+  });
+
+  // Anything this Mac wrote locally that never reached the repo would be lost by a
+  // silent swap. Say so instead.
+  let divergence = { comparable: false, entities: [], total: 0 };
+  step('3. Checking this Mac for unsynced memory...', () => {
+    divergence = gm.observationsMissingFromRepo(memoryPath, repoPath);
+  });
+
+  let parked;
+  step('4. Linking this Mac to the repo...         ', () => { parked = gm.createBridge(memoryPath, repoPath); });
+
+  step('5. Scheduling background sync...           ', () => {
+    const dir = path.join(homeDir, 'Library', 'Application Support', 'claude-memory-sync');
+    fs.mkdirSync(dir, { recursive: true });
+    const script = path.join(dir, 'sync.sh');
+    fs.writeFileSync(script, gm.syncScript(repoPath, path.join(dir, 'sync.log')), { mode: 0o755 });
+    const label = 'com.kamstudios.claude-memory-sync';
+    const plist = path.join(homeDir, 'Library', 'LaunchAgents', `${label}.plist`);
+    fs.mkdirSync(path.dirname(plist), { recursive: true });
+    fs.writeFileSync(plist, gm.launchAgentPlist(label, script, 900), 'utf8');
+    spawnSync('launchctl', ['unload', plist], { stdio: 'ignore' });
+    spawnSync('launchctl', ['load', plist], { stdio: 'ignore' });
+  });
+
+  console.log('');
+  console.log(chalk.bold.green('✅  This Mac is on your shared memory.\n'));
+  console.log(`  Repo    : ${chalk.cyan(`${account || ''}/${repoName}`)}`);
+  console.log(`  Local   : ${chalk.cyan(repoPath)}`);
+  console.log(`  Original: ${chalk.dim(parked)} ${chalk.dim('(kept)')}`);
+  console.log(`  Syncing : every 15 min\n`);
+
+  if (divergence.comparable && divergence.total > 0) {
+    console.log(chalk.yellow(`  ⚠️  This Mac's old folder held ${divergence.total} observation(s) the repo does not have:\n`));
+    divergence.entities.slice(0, 8).forEach(e => console.log(`      ${String(e.missing).padStart(5)}  ${e.name}`));
+    if (divergence.entities.length > 8) console.log(chalk.dim(`      … and ${divergence.entities.length - 8} more entities`));
+    console.log('');
+    console.log('  They are safe in the renamed folder above — nothing was deleted. Ask Claude to');
+    console.log('  merge them in if they matter; this Mac had been writing memory of its own.\n');
+  } else if (divergence.comparable) {
+    console.log(chalk.dim('  This Mac had nothing the repo was missing — a clean join.\n'));
+  }
+
+  const others = otherConfigSurfaces(memoryPath);
+  if (others.length) {
+    console.log(chalk.yellow('  These files still name the old path. They work through the link, but update'));
+    console.log(chalk.yellow('  them when convenient:\n'));
     others.forEach(f => console.log(`    ${chalk.dim(f)}`));
     console.log('');
   }

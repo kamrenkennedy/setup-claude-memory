@@ -299,7 +299,56 @@ function launchAgentPlist(label, scriptPath, intervalSeconds) {
 `;
 }
 
+// ─── Joining an existing repo (second machine) ───────────────────────────────
+//
+// A clone is NOT enough. `.gitattributes` is tracked and comes down with the clone, but
+// the merge driver lives in .git/config, which does not — so a freshly cloned machine
+// sees `merge=aim-memory`, finds no such driver, and silently falls back to git's text
+// merge. That produces conflict markers in memory.jsonl in precisely the two-machine
+// case this system exists to make safe. Verified 2026-09-06.
+
+function repoExistsOnAccount(name) {
+  return spawnSync('gh', ['repo', 'view', name, '--json', 'name'], { encoding: 'utf8' }).status === 0;
+}
+
+function cloneMemoryRepo(name, dest) {
+  const r = spawnSync('gh', ['repo', 'clone', name, dest], { encoding: 'utf8' });
+  if (r.status !== 0) throw new Error(`clone failed: ${(r.stderr || '').trim().split('\n')[0]}`);
+}
+
+// A second Mac may have been writing to its own local store. Report anything it holds
+// that the repo does not, rather than parking it silently and calling that a migration.
+function observationsMissingFromRepo(localStoreDir, repoDir) {
+  const read = (dir) => {
+    const f = path.join(dir, 'memory.jsonl');
+    if (!fs.existsSync(f)) return null;
+    const map = new Map();
+    for (const line of fs.readFileSync(f, 'utf8').split('\n')) {
+      if (!line.trim()) continue;
+      let o; try { o = JSON.parse(line); } catch { continue; }
+      if (o.type === 'entity') map.set(o.name, new Set(o.observations || []));
+    }
+    return map;
+  };
+  const local = read(localStoreDir);
+  const repo = read(repoDir);
+  if (!local || !repo) return { comparable: false, entities: [], total: 0 };
+
+  const entities = [];
+  let total = 0;
+  for (const [name, obs] of local) {
+    const there = repo.get(name) || new Set();
+    const missing = [...obs].filter(o => !there.has(o));
+    if (missing.length) { entities.push({ name, missing: missing.length }); total += missing.length; }
+  }
+  entities.sort((a, b) => b.missing - a.missing);
+  return { comparable: true, entities, total };
+}
+
 module.exports = {
+  repoExistsOnAccount,
+  cloneMemoryRepo,
+  observationsMissingFromRepo,
   syncScript,
   launchAgentPlist,
   unsafeRepoLocation,

@@ -266,5 +266,80 @@ console.log('\n=== 10. Unattended sync survives a genuine concurrent edit ===');
   fs.rmSync(base, { recursive: true, force: true });
 }
 
+// ─── 11. Second machine: what a clone does NOT bring ─────────────────────────
+console.log('\n=== 11. A clone does not carry the merge driver — the join must install it ===');
+{
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'aim-join-'));
+  const bare = path.join(base, 'remote.git');
+  const mac1 = path.join(base, 'mac1');
+  const mac2 = path.join(base, 'mac2');
+  const driver = path.join(__dirname, '..', 'bin', 'memory-merge-driver.mjs');
+  const MK = '{"type":"_aim","source":"mcp-knowledge-graph"}';
+  const ent = (n, o) => JSON.stringify({ type: 'entity', name: n, entityType: 'p', observations: o });
+
+  execFileSync('git', ['init', '-q', '--bare', '-b', 'main', bare]);
+  fs.mkdirSync(mac1);
+  M.git(mac1, ['init', '-q', '-b', 'main']);
+  M.git(mac1, ['config', 'user.email', 't@t']); M.git(mac1, ['config', 'user.name', 'T']);
+  M.registerMergeDriver(mac1, driver);
+  fs.writeFileSync(path.join(mac1, '.gitattributes'), M.GITATTRIBUTES);
+  fs.writeFileSync(path.join(mac1, 'memory.jsonl'), [MK, ent('P', ['base'])].join('\n'));
+  M.git(mac1, ['add', '-A']); M.git(mac1, ['commit', '-qm', 'base']);
+  M.git(mac1, ['remote', 'add', 'origin', bare]); M.git(mac1, ['push', '-qu', 'origin', 'main']);
+
+  execFileSync('git', ['clone', '-q', bare, mac2]);
+  const driverAfterClone = spawnSync('git', ['-C', mac2, 'config', 'merge.aim-memory.driver'], { encoding: 'utf8' });
+  ok('.gitattributes DOES come with the clone', fs.existsSync(path.join(mac2, '.gitattributes')));
+  ok('but the merge driver does NOT', driverAfterClone.status !== 0,
+     'driver was unexpectedly present — the join step would be unnecessary');
+
+  // What the join step does.
+  M.registerMergeDriver(mac2, driver);
+  ok('registering it on the second machine fixes that',
+     spawnSync('git', ['-C', mac2, 'config', 'merge.aim-memory.driver'], { encoding: 'utf8' }).status === 0);
+
+  // And now a real concurrent merge between the two machines resolves.
+  M.git(mac2, ['config', 'user.email', 't@t']); M.git(mac2, ['config', 'user.name', 'T']);
+  fs.writeFileSync(path.join(mac1, 'memory.jsonl'), [MK, ent('P', ['base', 'from-mac1'])].join('\n'));
+  M.git(mac1, ['commit', '-qam', 'mac1']); M.git(mac1, ['push', '-q']);
+  fs.writeFileSync(path.join(mac2, 'memory.jsonl'), [MK, ent('P', ['base', 'from-mac2'])].join('\n'));
+  M.git(mac2, ['commit', '-qam', 'mac2']);
+  const pulled = spawnSync('git', ['-C', mac2, 'pull', '--rebase', '--autostash'], { encoding: 'utf8' });
+  ok('the two machines then merge cleanly', pulled.status === 0, pulled.stdout + pulled.stderr);
+  const text = fs.readFileSync(path.join(mac2, 'memory.jsonl'), 'utf8');
+  ok('both machines\' facts survive', text.includes('from-mac1') && text.includes('from-mac2'));
+
+  fs.rmSync(base, { recursive: true, force: true });
+}
+
+// ─── 12. The join reports memory the second Mac had but the repo did not ─────
+console.log('\n=== 12. Unsynced local memory is reported, not silently parked ===');
+{
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'aim-div-'));
+  const local = path.join(base, 'local');
+  const repo = path.join(base, 'repo');
+  fs.mkdirSync(local); fs.mkdirSync(repo);
+  const MK = '{"type":"_aim","source":"mcp-knowledge-graph"}';
+  const ent = (n, o) => JSON.stringify({ type: 'entity', name: n, entityType: 'p', observations: o });
+
+  fs.writeFileSync(path.join(local, 'memory.jsonl'),
+    [MK, ent('Shared', ['a', 'b', 'only-on-this-mac']), ent('LocalOnly', ['x', 'y'])].join('\n'));
+  fs.writeFileSync(path.join(repo, 'memory.jsonl'),
+    [MK, ent('Shared', ['a', 'b'])].join('\n'));
+
+  const d = M.observationsMissingFromRepo(local, repo);
+  ok('divergence is detected', d.comparable && d.total === 3, JSON.stringify(d));
+  ok('names the entity holding unsynced work', d.entities.some(e => e.name === 'LocalOnly' && e.missing === 2),
+     JSON.stringify(d.entities));
+  ok('and the partially-diverged one', d.entities.some(e => e.name === 'Shared' && e.missing === 1),
+     JSON.stringify(d.entities));
+
+  // A clean join reports nothing.
+  fs.writeFileSync(path.join(local, 'memory.jsonl'), [MK, ent('Shared', ['a', 'b'])].join('\n'));
+  ok('an in-sync Mac reports zero', M.observationsMissingFromRepo(local, repo).total === 0);
+
+  fs.rmSync(base, { recursive: true, force: true });
+}
+
 console.log(`\n${fail === 0 ? 'ALL PASS' : 'FAILURES'} — ${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);

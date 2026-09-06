@@ -134,6 +134,23 @@ Dropbox rewrites timestamps, both silently. Note that `~/Documents` and `~/Deskt
 whenever macOS "Desktop & Documents Folders" sync is on — a common default that nothing in the path
 reveals — so the installer probes for it rather than trusting the path.
 
+### Adding another Mac
+
+Run the same command there:
+
+```
+npx setup-claude-memory@latest --git
+```
+
+It notices the repo already exists and **joins** it instead of creating a new one. This matters:
+cloning by hand is not enough. `.gitattributes` is tracked and comes down with a clone, but the
+merge driver lives in `.git/config`, which does not — so a hand-cloned machine finds no driver and
+silently falls back to git'''s text merge, writing conflict markers into your memory. The join step
+installs it.
+
+It also reports anything that Mac had written locally that never reached the repo, rather than
+parking it silently.
+
 ### Check for credentials at any time
 
 ```

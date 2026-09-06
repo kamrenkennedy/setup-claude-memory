@@ -172,7 +172,14 @@ def hero(p):
     for i, (nx, ny) in enumerate(nodes):
         fill = p["rust"] if i == 1 else p["card"]
         s += f'<circle cx="{nx}" cy="{ny}" r="{15 if i else 13}" fill="{fill}" stroke="{p["line"]}" stroke-width="4"/>\n'
-    s += mascot(p, 930, 206, scale=0.92)
+    art = os.environ.get("HERO_ART")
+    if art:
+        # The drawn character (docs/img/art/memory-card.png) in place of the SVG mascot.
+        # Used by render-png.py; the committed SVG heroes keep the vector mascot.
+        s += f'<ellipse cx="930" cy="378" rx="112" ry="9" fill="{p["shadow"]}" fill-opacity="{p["shadowop"]}"/>\n'
+        s += f'<image href="{art}" x="800" y="52" width="260" height="330" preserveAspectRatio="xMidYMax meet"/>\n'
+    else:
+        s += mascot(p, 930, 206, scale=0.92)
     s += "</svg>\n"
     return s
 

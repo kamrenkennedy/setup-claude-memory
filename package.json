@@ -11,11 +11,12 @@
   },
   "scripts": {
     "start": "node ./bin/setup.js",
-    "test": "npm run test:server && npm run test:merge && npm run test:scan && npm run test:git",
+    "test": "npm run test:server && npm run test:merge && npm run test:scan && npm run test:git && npm run test:compact",
     "test:server": "node test/memory-server.test.mjs",
     "test:merge": "node test/merge-driver.test.mjs",
     "test:scan": "node test/memory-scan.test.mjs",
-    "test:git": "node test/git-migrate.test.mjs"
+    "test:git": "node test/git-migrate.test.mjs",
+    "test:compact": "node test/memory-compact.test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -48,6 +49,7 @@
     "bin/memory-merge-driver.mjs",
     "bin/memory-scan.mjs",
     "bin/git-migrate.js",
+    "bin/memory-compact.js",
     "bin/apple-embed.swift",
     "templates/**",
     "package.json",

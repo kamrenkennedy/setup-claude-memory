@@ -7,6 +7,7 @@ const fs            = require('fs');
 const path          = require('path');
 const { execSync, spawnSync }  = require('child_process');
 const gm            = require('./git-migrate');
+const mc            = require('./memory-compact');
 
 const homeDir       = os.homedir();
 const ICLOUD_BASE   = path.join(homeDir, 'Library', 'Mobile Documents', 'com~apple~CloudDocs');
@@ -185,8 +186,9 @@ async function main() {
   const familyOnly = argv.includes('--family');
   const gitMode    = argv.includes('--git');
   const scanOnly   = argv.includes('--scan');
+  const compactMode= argv.includes('--compact');
 
-  if (scanOnly || gitMode) {
+  if (scanOnly || gitMode || compactMode) {
     const errs = checkPrerequisites();
     if (errs.length) { errs.forEach(e => console.log(chalk.red(`✗ ${e}`))); process.exit(1); }
     let cfg;
@@ -197,6 +199,7 @@ async function main() {
       process.exit(1);
     }
     if (scanOnly) { process.exit(runScan(found.memoryPath) ? 0 : 1); }
+    if (compactMode) { await runCompaction(found.memoryPath, argv[argv.indexOf('--compact') + 1]); return; }
     await runGitMigration({ config: cfg, ...found });
     return;
   }
@@ -585,6 +588,124 @@ function readUserConfig(configPath) {
   if (!fs.existsSync(configPath)) return null;
   try { return JSON.parse(fs.readFileSync(configPath, 'utf8')); }
   catch { return null; }
+}
+
+// ─── compaction (--compact) ──────────────────────────────────────────────────
+
+function loadStore(memoryPath) {
+  const file = path.join(memoryPath, 'memory.jsonl');
+  const lines = fs.readFileSync(file, 'utf8').split('\n').filter(l => l.trim());
+  const graph = { entities: [], relations: [] };
+  for (const l of lines.slice(1)) {
+    const o = JSON.parse(l);
+    if (o.type === 'entity') graph.entities.push(o);
+    else if (o.type === 'relation') graph.relations.push(o);
+  }
+  return { file, graph };
+}
+
+function saveStore(file, graph) {
+  const out = [
+    JSON.stringify({ type: '_aim', source: 'mcp-knowledge-graph' }),
+    ...graph.entities.map(e => JSON.stringify({ type: 'entity', ...e })),
+    ...graph.relations.map(r => JSON.stringify({ type: 'relation', ...r })),
+  ].join('\n');
+  const mode = fs.statSync(file).mode & 0o777;
+  const tmp = path.join(path.dirname(file), `.memory.jsonl.tmp-${process.pid}`);
+  fs.writeFileSync(tmp, out, { mode });
+  fs.renameSync(tmp, file);
+}
+
+async function runCompaction(memoryPath, requested) {
+  console.log(chalk.bold.cyan('\n🧹  Archive finished work\n'));
+  console.log(chalk.dim('  Nothing is deleted. Approved items move to an archive entity and stay searchable.\n'));
+
+  const { file, graph } = loadStore(memoryPath);
+
+  let entityName = requested && !requested.startsWith('--') ? requested : null;
+  if (!entityName) {
+    const sized = graph.entities
+      .filter(e => !e.name.endsWith(mc.ARCHIVE_SUFFIX))
+      .map(e => ({ name: e.name, chars: e.observations.reduce((n, o) => n + o.length, 0), obs: e.observations.length }))
+      .sort((a, b) => b.chars - a.chars).slice(0, 10);
+    const { pick } = await inquirer.prompt([{
+      type: 'list', name: 'pick', message: 'Which entity?',
+      choices: sized.map(e => ({ name: `${String(e.chars).padStart(7)} ch  ${String(e.obs).padStart(5)} obs  ${e.name}`, value: e.name })),
+    }]);
+    entityName = pick;
+  }
+
+  const p = mc.proposeCompaction(graph, entityName);
+  console.log('');
+  console.log(`  ${chalk.bold(p.entity)}: ${p.totalObservations} observations, ${p.totalChars.toLocaleString()} chars`);
+  if (!p.candidates.length) { console.log(chalk.green('\n  Nothing to archive — no finished work matched.\n')); return; }
+  console.log(`  Proposed: ${p.candidates.length} observations, ${p.proposedChars.toLocaleString()} chars ` +
+              chalk.dim(`(${Math.round(p.proposedChars / p.totalChars * 100)}%)`));
+  console.log('');
+
+  const approved = [];
+  for (const group of p.groups) {
+    const clean = group.items.filter(i => !i.needsReview);
+    const flagged = group.items.filter(i => i.needsReview);
+    console.log(chalk.bold(`  ${group.label}`));
+    console.log(chalk.dim(`    ${group.why}`));
+    console.log(`    ${group.items.length} matched — ${clean.length} clean, ${flagged.length} need a look\n`);
+
+    if (clean.length) {
+      clean.slice(0, 3).forEach(i => console.log(chalk.dim(`      • ${i.text.slice(0, 100).replace(/\n/g, ' ')}…`)));
+      if (clean.length > 3) console.log(chalk.dim(`      … and ${clean.length - 3} more`));
+      const { take } = await inquirer.prompt([{
+        type: 'confirm', name: 'take', message: `  Archive all ${clean.length} clean ones?`, default: true,
+      }]);
+      if (take) approved.push(...clean.map(i => i.text));
+      console.log('');
+    }
+
+    // Flagged items hold the last copy of some identifier. Never bulk-approve these.
+    if (flagged.length) {
+      const { how } = await inquirer.prompt([{
+        type: 'list', name: 'how',
+        message: `  ${flagged.length} hold the ONLY copy of some identifier. These need a decision:`,
+        choices: [
+          { name: 'Keep them all (recommended)', value: 'keep' },
+          { name: 'Review one at a time', value: 'each' },
+        ],
+      }]);
+      if (how === 'each') {
+        for (const item of flagged) {
+          console.log('\n' + chalk.yellow('  ─────'));
+          console.log('  ' + item.text.replace(/\n/g, '\n  '));
+          console.log(chalk.yellow(`\n  Only copy of: ${item.orphanTokens.slice(0, 6).join(', ')}`));
+          const { move } = await inquirer.prompt([{ type: 'confirm', name: 'move', message: '  Archive it anyway?', default: false }]);
+          if (move) approved.push(item.text);
+        }
+      }
+      console.log('');
+    }
+  }
+
+  if (!approved.length) { console.log(chalk.yellow('\n  Nothing approved — no changes made.\n')); return; }
+
+  const chars = approved.reduce((n, t) => n + t.length, 0);
+  const { confirm } = await inquirer.prompt([{
+    type: 'confirm', name: 'confirm',
+    message: `Move ${approved.length} observations (${chars.toLocaleString()} chars) to ${p.archiveEntity}?`, default: true,
+  }]);
+  if (!confirm) { console.log(chalk.yellow('\nCancelled — nothing changed.\n')); return; }
+
+  const beforeTotal = graph.entities.reduce((n, e) => n + e.observations.length, 0);
+  const result = mc.applyCompaction(graph, entityName, approved);
+  const afterTotal = graph.entities.reduce((n, e) => n + e.observations.length, 0);
+  if (beforeTotal !== afterTotal) {
+    console.log(chalk.red(`\n✗ Refusing to write: observation count changed ${beforeTotal} → ${afterTotal}.\n`));
+    process.exit(1);
+  }
+  saveStore(file, graph);
+
+  console.log('');
+  console.log(chalk.bold.green(`✅  Moved ${result.moved} to ${result.archiveEntity} (now ${result.archiveTotal} observations).\n`));
+  console.log(chalk.dim('  Nothing was deleted — everything moved is still searchable in the archive entity,'));
+  console.log(chalk.dim('  and the next sync commits this, so it is revertable.\n'));
 }
 
 // ─── git migration (--git) ───────────────────────────────────────────────────

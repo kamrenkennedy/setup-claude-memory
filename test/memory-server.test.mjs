@@ -160,6 +160,27 @@ ok('remove_facts drops just that observation', t2.entities[0].observations.lengt
 await call('aim_memory_forget', { entityNames: ['__T__'] });
 ok('forget removes the entity', JSON.parse(await call('aim_memory_get', { names: ['__T__'] })).entities.length === 0);
 
+console.log('\n=== 9b. Writing a long observation gets pushed back on ===');
+{
+  const shortOne = 'shipped X on 2026-09-06 — see deep context `some-doc-id`';
+  const longOne = 'A'.repeat(450);
+  await call('aim_memory_store', { entities: [{ name: '__W__', entityType: 'test', observations: [] }] });
+
+  const okRes = JSON.parse(await call('aim_memory_add_facts', { observations: [{ entityName: '__W__', contents: [shortOne] }] }));
+  ok('a short pointer draws no guidance', okRes[0].guidance === undefined, JSON.stringify(okRes[0].guidance));
+  ok('but the entity size is always reported', typeof okRes[0].entity_total_chars === 'number');
+
+  const warnRes = JSON.parse(await call('aim_memory_add_facts', { observations: [{ entityName: '__W__', contents: [longOne] }] }));
+  ok('a 450-char observation is flagged', typeof warnRes[0].guidance === 'string', JSON.stringify(warnRes[0]));
+  ok('the guidance names deep context as the alternative', /deep[- ]context|aim_deep_store/i.test(warnRes[0].guidance || ''));
+  ok('and it still WROTE the observation (advice, not a block)',
+     warnRes[0].addedObservations.length === 1, JSON.stringify(warnRes[0].addedObservations.length));
+
+  const g = JSON.parse(await call('aim_memory_get', { names: ['__W__'] }));
+  ok('both observations are present', g.entities[0].total_observations === 2, `${g.entities[0].total_observations}`);
+  await call('aim_memory_forget', { entityNames: ['__W__'] });
+}
+
 console.log('\n=== 10. A malformed store is refused, not overwritten ===');
 const badDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aim-bad-'));
 fs.writeFileSync(path.join(badDir, 'memory.jsonl'), '{"type":"entity","name":"NotOurs"}');

@@ -48,6 +48,13 @@ if (memoryPath) {
 // The whole point of this server. Every read path is bounded so no single entity
 // can flood a context window. All are overridable per call.
 
+// An observation longer than this is almost certainly narrative that belongs in the
+// deep-context archive. Measured 2026-09-06: the store's median observation is 297
+// chars and 49% exceed 300 — the "short pointer" convention in the global CLAUDE.md is
+// universally ignored, which is what actually drives entity growth. Bounded reads made
+// that survivable; they did not make it stop.
+const LONG_OBSERVATION = 300;
+
 const DEFAULTS = {
   searchPerEntity: 10,     // matching observations returned per entity
   searchTotal: 60,         // matching observations returned overall
@@ -168,6 +175,31 @@ async function createRelations(relations, context, location) {
   return added;
 }
 
+// Report back on what was just written, so the writer sees the cost of its own habits.
+// Silent acceptance is why this drifted: nothing ever pushed back.
+function writeFeedback(entity, added) {
+  const longOnes = added.filter(o => o.length > LONG_OBSERVATION);
+  const chars = entity.observations.reduce((n, o) => n + o.length, 0);
+  const out = {
+    entity_total_observations: entity.observations.length,
+    entity_total_chars: chars,
+  };
+  if (longOnes.length) {
+    const lengths = longOnes.map(o => o.length).join(', ');
+    out.guidance =
+      `${longOnes.length} of ${added.length} observation(s) exceed ${LONG_OBSERVATION} characters (${lengths}). ` +
+      `Memory holds SHORT POINTERS; narrative belongs in the deep-context archive. ` +
+      `Prefer "<what happened> — see deep context \`<doc-id>\`" and put the detail in aim_deep_store. ` +
+      `Long observations are what made entities grow past the point of being readable.`;
+  }
+  if (chars > 400000) {
+    out.size_warning =
+      `"${entity.name}" is ${chars.toLocaleString()} characters across ${entity.observations.length} observations. ` +
+      `Reads stay bounded, but a store this dense returns weaker search results. Consider archiving finished work.`;
+  }
+  return out;
+}
+
 async function addObservations(observations, context, location) {
   const graph = await loadGraph(context, location);
   const results = observations.map(o => {
@@ -175,7 +207,7 @@ async function addObservations(observations, context, location) {
     if (!entity) throw new Error(`Entity with name ${o.entityName} not found`);
     const added = o.contents.filter(c => !entity.observations.includes(c));
     entity.observations.push(...added);
-    return { entityName: o.entityName, addedObservations: added };
+    return { entityName: o.entityName, addedObservations: added, ...writeFeedback(entity, added) };
   });
   await saveGraph(graph, context, location);
   return results;
@@ -498,7 +530,12 @@ Keep observations SHORT and pointer-style. Long narratives belong in the deep co
   },
   {
     name: 'aim_memory_add_facts',
-    description: 'Append observations to an existing entity. The entity must already exist. Duplicates are ignored. Keep entries short and pointer-style.',
+    description: `Append observations to an existing entity. The entity must already exist; duplicates are ignored.
+
+KEEP EACH OBSERVATION UNDER ~${LONG_OBSERVATION} CHARACTERS. Memory holds short, findable pointers —
+"shipped X on DATE — see deep context \`doc-id\`" — not narrative. Long-form belongs in aim_deep_store.
+The response reports the entity's size back to you; if it warns, shorten the next one rather than
+adding to the problem.`,
     inputSchema: {
       type: 'object',
       properties: {

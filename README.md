@@ -1,6 +1,6 @@
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/img/hero-dark.svg">
-  <img alt="setup-claude-memory. Memory that stays yours. Persistent memory for Claude, kept in plain files on your Mac and synced through accounts you already own." src="docs/img/hero-light.svg" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/hero-dark.png">
+  <img alt="setup-claude-memory. Memory that stays yours. Persistent memory for Claude, kept in plain files on your Mac and synced through accounts you already own." src="docs/img/hero-light.png" width="100%">
 </picture>
 
 # setup-claude-memory

@@ -256,10 +256,18 @@ function createBridge(oldPath, newPath) {
 // leaves a log rather than forcing anything.
 
 function syncScript(repo, logPath) {
+  const nodeDir = path.dirname(process.execPath);
   return `#!/bin/sh
 # Claude memory background sync — installed by setup-claude-memory --git.
 # Safe to run at any time, including while Claude is writing.
 set -u
+
+# launchd runs this with a minimal PATH that excludes Homebrew and other non-system
+# node installs. The merge driver is invoked by git as a bare \`node ...\` command, so
+# without this, any real merge silently falls back to git's text merge and leaves
+# conflict markers in memory.jsonl instead of resolving automatically.
+export PATH=${JSON.stringify(nodeDir)}:/opt/homebrew/bin:/usr/local/bin:"$PATH"
+
 REPO=${JSON.stringify(repo)}
 LOG=${JSON.stringify(logPath)}
 

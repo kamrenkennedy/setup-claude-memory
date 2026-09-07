@@ -6,7 +6,7 @@ Project CLAUDE.md. Read this alongside Kam's global CLAUDE.md at `~/.claude/CLAU
 
 `kamrenkennedy/setup-claude-memory` — the interactive CLI that bootstraps Kam's entire Claude persistent memory stack:
 
-1. **Kam-Memory MCP** (AIM knowledge graph via `mcp-knowledge-graph`) — quick facts, project status, entity relationships
+1. **Kam-Memory MCP** (`aim-memory-server`, shipped inside this package since v1.6.0 — search-first reads, drop-in replacement for the third-party `mcp-knowledge-graph`) — quick facts, project status, entity relationships
 2. **Kam-Deep-Context MCP** (`aim-deep-context-server`, shipped inside this package) — long-form session archive with semantic search, entity extraction, and graph traversal
 3. **iCloud sync** — memory files live in `~/Library/Mobile Documents/com~apple~CloudDocs/Claude Memory/` so all Macs share state
 4. **Multi-user support** — Tiera (Kam's wife) runs the same CLI, gets her own personalized `Tiera-Memory` / `Tiera-Deep-Context` servers on her own iCloud account
@@ -16,7 +16,7 @@ Published to npm as [`setup-claude-memory`](https://www.npmjs.com/package/setup-
 
 ## Tool Catalog
 
-### Kam-Memory MCP (`mcp-knowledge-graph` — invoked via `npx -y mcp-knowledge-graph --memory-path <path>`)
+### Kam-Memory MCP (`aim-memory-server`, shipped in this package since v1.6.0 — invoked via `npx -y --package=setup-claude-memory@latest aim-memory-server --memory-path <path>`; drop-in replacement for the third-party `mcp-knowledge-graph`)
 
 | Tool | Purpose |
 |---|---|
@@ -97,14 +97,17 @@ Multi-user model: each user's Claude memory writes to their own iCloud account (
 ## Related systems (not in this repo)
 
 - **Weekly Rhythm Engine** (`kamrenkennedy/weekly-rhythm`) — sibling skill/engine, same iCloud-templates deployment pattern.
-- **mcp-knowledge-graph** — npm package providing the AIM knowledge graph MCP server. We invoke via `npx -y mcp-knowledge-graph --memory-path <path>`. Not maintained by us.
+- **mcp-knowledge-graph** — the third-party server `aim-memory-server` replaced (v1.6.0+). A fresh install never touches it now. A Mac whose Kam-Memory config entry still names it directly (`args` containing `'mcp-knowledge-graph'` with no `--package=setup-claude-memory`) is running the pre-v1.6.0 legacy entry — run `npx setup-claude-memory@latest` with **no flags** to upgrade it. See Known limitations: the `--git`/`--scan`/`--compact` fast paths do NOT perform this upgrade.
 
-## Memory durability track (opened 2026-08-30 — in flight, NOTHING BUILT YET)
+## Memory durability track (opened 2026-08-30 — SHIPPED v1.7.0–v1.10.1, 2026-09-05/06)
 
-The whole-store upgrade: memory out of iCloud into a private git repo, search-first reads, scheduled
-compaction. Before touching any of it, read Deep Context
-`content-strategy-app-memory-hand-triage-executed-2026-08-30` — it holds the measurements and
-reconnaissance. Do not re-derive them.
+**Status: all three parts below are built and released.** Search-first reads shipped in v1.6.0
+(technically slightly before this track opened — it's the reason the track exists). The `--git`
+migration flow, join-an-existing-repo, the semantic merge driver, and staged compaction (`--compact`)
+shipped 2026-09-05/06. See README's "Keep memory in git" and "Search-first reads" sections for the
+user-facing behavior, and Known limitations below for gaps found running it for real on 2026-09-07.
+Before touching any of it, read Deep Context `content-strategy-app-memory-hand-triage-executed-2026-08-30`
+for the original measurements/reconnaissance — do not re-derive them.
 
 **Why it exists.** Manual pruning measurably fails: Content_Strategy_App regained 23K chars within
 5.5 hours of a 150-observation hand triage; four manual passes in six weeks (08-14, 08-21, 08-27,
@@ -228,21 +231,68 @@ Standard global wrap (Kam-Memory + Kam-Deep-Context), plus:
 pagination workaround; scheduled compaction replaces `aim_memory_consolidate`; the short-pointer
 observation convention already landed in global CLAUDE.md.
 
+**`--git`/`--scan`/`--compact` skip the legacy-entry upgrade (found 2026-09-07).** `main()`'s fast
+path for these three flags (`bin/setup.js` ~line 191) calls `detectFromClaudeConfig` and hands
+whatever it finds straight to the flag's handler — it never runs the unconditional
+`config.mcpServers[serverName] = kgEntry(memoryPath)` rewrite that the plain "Scenario 1" upgrade
+path (~line 267) does. Concretely: a Mac whose Kam-Memory entry was still the pre-v1.6.0 legacy
+`mcp-knowledge-graph` form, that migrates straight via `--git`, keeps the legacy entry — `--git`
+only relocates the store; it doesn't touch `config.mcpServers`. Symptom: `aim_memory_search` /
+`aim_memory_get` return whole unbounded entities (hundreds of thousands of chars) instead of
+bounded, search-first results, because the connected server actually is the old third-party one.
+Fix for an affected Mac: run `npx setup-claude-memory@latest` with **no flags** — that's the only
+path that performs the rewrite. Not yet fixed upstream (would mean teaching the three fast-path
+branches to also check `isLegacyMemoryEntry` and rewrite before dispatching) — flag for a future
+session rather than assume it's been patched.
+
+**Background git-sync fails under launchd's minimal PATH (found + fixed 2026-09-07).** The
+15-minute LaunchAgent (`com.kamstudios.claude-memory-sync`) runs `sync.sh` via `/bin/sh`, which
+inherits launchd's PATH — `/opt/homebrew/bin` is not on it. `sync.sh` invokes `git pull --rebase`,
+which for a genuine divergence must run the registered merge driver, itself a bare `node ...`
+command — `node` isn't found, the driver silently fails to run, git falls back to text merge,
+memory.jsonl gets conflict markers, and the script correctly detects the conflict and safely
+`rebase --abort`s. Net effect: sync silently no-ops (not corrupts) every time there's a real
+two-sided merge to do, which is exactly the case this whole system exists for. Fixed in
+`bin/git-migrate.js`'s `syncScript()` — exports `PATH` (the generating Node's own `dirname
+process.execPath`, plus both Homebrew prefixes) at the top of the generated script — and tests
+pass (28/28 relevant suite; full `npm test` chain exits 0). **Not yet committed or published** —
+Kam hadn't been asked. A Mac already migrated needs the same one-line `export PATH=...` prepended
+to its live `~/Library/Application Support/claude-memory-sync/sync.sh` by hand until a new version
+ships (Kamren's Mac Studio already patched 2026-09-07).
+
 ## Current state (update at end of each session)
 
-- **Local + GitHub:** v1.5.0, tag pushed. **npm latest:** v1.5.0 — parity re-verified 2026-08-30.
-- **Memory durability track:** design + reconnaissance done 2026-08-30, nothing built. OPEN CALL for
-  Kam: where the store's git working copy lives (git-init-in-place in iCloud is rejected as a
-  corruption hazard). Then in order: gitignore/move backups → private repo + pre-push secret scan →
-  search-first read server → scheduled compaction. Deep Context:
-  `content-strategy-app-memory-hand-triage-executed-2026-08-30`.
-- **Open follow-ups:** Tiera family-memory handoff still pending (manual in-person step).
-- **Last session (2026-08-30):** modernized this CLAUDE.md — durability track, store-touch
-  discipline, config-surface map, 🟢🟡🔴 tiers. Caught this checkout sitting at April's `5a2d982`
-  with uncommitted edits while remote had the 2026-05-06 refresh (`e3c790b`); merged by content,
-  dropped April's duplicate distribution text in favor of the remote section. NOTE:
-  untracked `AGENTS.md` (Codex twin of this file) is a raw Claude→Codex find-replace with broken
-  paths (`Codex Memory`, `setup-Codex-memory`) — fix before trusting or committing it.
-- **Last shipped:** v1.6.1 on 2026-08-30. v1.6.2 is committed and tagged but NOT published — npm
-  auth expired mid-release. Until it publishes, npm's 1.6.1 still has the backwards update prompt,
-  so answering "yes" to it skips the server rewrite.
+- **Local + GitHub:** v1.10.1, HEAD `91a1085` (6 commits past the `v1.9.0` tag — untagged). **npm
+  latest:** v1.10.1 — parity confirmed 2026-09-07.
+- **Memory durability track:** all three parts shipped (v1.7.0–v1.10.1, 2026-09-05/06). See the
+  durability-track section above.
+- **This session (2026-09-07), on Kamren's Mac Studio:** Kam reported "the memory says it's not
+  updated." Root cause was two independent bugs, both found live on this Mac and fixed locally
+  (see Known limitations above for full detail):
+  1. Kam-Memory's Desktop-config entry was still the pre-v1.6.0 legacy `mcp-knowledge-graph` form
+     (never upgraded — this Mac's `--git` migration on 2026-09-06 used the fast path that skips
+     the rewrite). Kam-Deep-Context was also missing its `@latest` pin. Both hand-fixed in
+     `claude_desktop_config.json` to match `kgEntry()`/`deepEntry()` exactly — **needs Claude
+     Desktop fully quit (Cmd+Q) and relaunched to take effect**, not yet confirmed done.
+  2. The 15-min background sync LaunchAgent had been silently failing on any real merge since
+     today's `node: command not found` (launchd PATH lacks `/opt/homebrew/bin`) — safely
+     `rebase --abort`ed each time, so no data was lost, but this Mac had stopped receiving new
+     commits from elsewhere. Fixed live (`sync.sh` patched by hand + manual sync run, confirmed
+     `HEAD` == `origin/main`), and fixed upstream in `bin/git-migrate.js`'s `syncScript()`.
+  3. **Uncommitted:** the `git-migrate.js` fix (tests pass, 28/28 + full `npm test` exits 0). Kam
+     has not yet been asked to commit/publish it — do that first if picking this back up, since
+     every other Mac's already-installed `sync.sh` has the same bug until it ships.
+  - Also ran `/skills-sync`: all 22 MANIFEST skills correct, no drift. One external-tool gap
+    (`codebase-memory-mcp` not installed here) — flagged, install deferred to Kam (per-item
+    approval rule; a Systems reminder is open). Closed two stale Systems reminders this session's
+    fixes resolved: the skill-drift "3 issue(s)" reminder (0 skill drift found) and the 🔴
+    "Kam Memory MCP reading EMPTY" reminder from the 2026-09-06 migration night (verified
+    `Lawn_Management_System` and 185 other lines present and intact in `memory.jsonl`).
+- **Open follow-ups:** Tiera family-memory handoff still pending (manual in-person step). Tiera's
+  side of the durability track ("Set Tiera up on the new memory system" reminder) also still open —
+  Kam's side only. `AGENTS.md` (Codex twin of this file, flagged broken 2026-08-30) not rechecked
+  this session.
+- **Last shipped:** v1.9.0 tagged 2026-09-06 ("document the durability commands"). Local is 6
+  commits ahead of that tag (README dress-up + figure generator, PR #2, merged 2026-09-06) at
+  v1.10.1 in `package.json` — **not yet tagged or independently verified against a fresh
+  `npm view`**, though the version-parity check above shows npm already serving 1.10.1.

@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 430" width="1200" height="430" role="img" aria-label="Archiving with --compact: a project entity full of finished status notes; the tool proposes moves grouped by why, you approve each group, and the finished notes move to an archive entity where they stay searchable. Anything holding the last copy of an identifier is flagged and never bulk-approved. Nothing is ever deleted.">
+<defs>
+  <pattern id="dots" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(30)">
+    <circle cx="2" cy="2" r="1.25" fill="#1E2A38" fill-opacity="0.16"/>
+  </pattern>
+  <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#2E6E73"/>
+  </marker>
+  <marker id="arrowInk" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#1E2A38"/>
+  </marker>
+</defs><rect width="1200" height="430" fill="#F2EBDD"/>
+<text x="60" y="62" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#8A8F8B" text-anchor="start" letter-spacing="2.2" opacity="1">BEFORE</text>
+<text x="600" y="62" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#8A8F8B" text-anchor="middle" letter-spacing="2.2" opacity="1">YOU APPROVE EACH GROUP</text>
+<text x="810" y="62" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#8A8F8B" text-anchor="start" letter-spacing="2.2" opacity="1">AFTER</text>
+<rect x="47" y="91" width="380" height="256" rx="16" fill="url(#dots)"/>
+<rect x="40" y="84" width="380" height="256" rx="16" fill="#FBF7EE" stroke="#1E2A38" stroke-width="3"/>
+<text x="62" y="116" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="600" fill="#1E2A38" text-anchor="start" letter-spacing="0" opacity="1">A project entity, months in</text>
+<text x="62" y="136" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" font-weight="400" fill="#8A8F8B" text-anchor="start" letter-spacing="0" opacity="1">981 observations, 809,000 characters</text>
+<rect x="82" y="156" width="200" height="10" rx="5" fill="#2E6E73" fill-opacity="0.8"/>
+<rect x="82" y="176" width="150" height="10" rx="5" fill="#C8D9C5" stroke="#8A8F8B" stroke-width="1"/>
+<circle cx="70" cy="181" r="5" fill="none" stroke="#8A8F8B" stroke-width="1.5"/>
+<path d="M67.5,181 l2,2 l4,-4" fill="none" stroke="#8A8F8B" stroke-width="1.5" stroke-linecap="round"/>
+<rect x="82" y="196" width="230" height="10" rx="5" fill="#C8D9C5" stroke="#8A8F8B" stroke-width="1"/>
+<circle cx="70" cy="201" r="5" fill="none" stroke="#8A8F8B" stroke-width="1.5"/>
+<path d="M67.5,201 l2,2 l4,-4" fill="none" stroke="#8A8F8B" stroke-width="1.5" stroke-linecap="round"/>
+<rect x="82" y="216" width="120" height="10" rx="5" fill="#2E6E73" fill-opacity="0.8"/>
+<rect x="82" y="236" width="180" height="10" rx="5" fill="#C8D9C5" stroke="#8A8F8B" stroke-width="1"/>
+<circle cx="70" cy="241" r="5" fill="none" stroke="#8A8F8B" stroke-width="1.5"/>
+<path d="M67.5,241 l2,2 l4,-4" fill="none" stroke="#8A8F8B" stroke-width="1.5" stroke-linecap="round"/>
+<rect x="82" y="256" width="210" height="10" rx="5" fill="#F1D9CC" stroke="#C96F4A" stroke-width="1.5"/>
+<circle cx="70" cy="261" r="5" fill="none" stroke="#C96F4A" stroke-width="1.5"/>
+<line x1="70" y1="258.5" x2="70" y2="262" stroke="#C96F4A" stroke-width="1.5" stroke-linecap="round"/><circle cx="70" cy="264" r="0.8" fill="#C96F4A"/>
+<rect x="82" y="276" width="160" height="10" rx="5" fill="#C8D9C5" stroke="#8A8F8B" stroke-width="1"/>
+<circle cx="70" cy="281" r="5" fill="none" stroke="#8A8F8B" stroke-width="1.5"/>
+<path d="M67.5,281 l2,2 l4,-4" fill="none" stroke="#8A8F8B" stroke-width="1.5" stroke-linecap="round"/>
+<rect x="82" y="296" width="240" height="10" rx="5" fill="#2E6E73" fill-opacity="0.8"/>
+<text x="62" y="328" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#8A8F8B" text-anchor="start" letter-spacing="0" opacity="1">teal: still true.  checked: finished status notes.  red: holds an identifier.</text>
+<rect x="477" y="127" width="260" height="180" rx="16" fill="url(#dots)"/>
+<rect x="470" y="120" width="260" height="180" rx="16" fill="#FBF7EE" stroke="#1E2A38" stroke-width="2" stroke-dasharray="8 6"/>
+<text x="600" y="152" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#1E2A38" text-anchor="middle" letter-spacing="0" opacity="1">Proposed moves</text>
+<rect x="536.6" y="170" width="127" height="26" rx="13.0" fill="#F3EDDF" stroke="#1E2A38" stroke-width="2"/>
+<text x="600.0" y="187.0" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#1E2A38" text-anchor="middle" letter-spacing="1.2" opacity="1">shipped  ·  12</text>
+<rect x="529.4" y="204" width="141" height="26" rx="13.0" fill="#F3EDDF" stroke="#1E2A38" stroke-width="2"/>
+<text x="600.0" y="221.0" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#1E2A38" text-anchor="middle" letter-spacing="1.2" opacity="1">superseded  ·  7</text>
+<rect x="522.2" y="238" width="156" height="26" rx="13.0" fill="#F3EDDF" stroke="#1E2A38" stroke-width="2"/>
+<text x="600.0" y="255.0" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#1E2A38" text-anchor="middle" letter-spacing="1.2" opacity="1">done, dated  ·  31</text>
+<text x="600" y="288" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#8A8F8B" text-anchor="middle" letter-spacing="0" opacity="1">grouped by why. approved one group at a time.</text>
+<polyline points="420,210 462,210" fill="none" stroke="#2E6E73" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow)"/>
+<text x="441.0" y="194" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#5C605D" text-anchor="middle" letter-spacing="0" opacity="1">--compact</text>
+<polyline points="730,170 782,150" fill="none" stroke="#2E6E73" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow)"/>
+<text x="756.0" y="136" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#5C605D" text-anchor="middle" letter-spacing="0" opacity="1">what stays</text>
+<polyline points="730,250 782,280" fill="none" stroke="#2E6E73" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow)"/>
+<text x="756.0" y="300" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#5C605D" text-anchor="middle" letter-spacing="0" opacity="1">what moves</text>
+<rect x="797" y="91" width="370" height="110" rx="16" fill="url(#dots)"/>
+<rect x="790" y="84" width="370" height="110" rx="16" fill="#FBF7EE" stroke="#1E2A38" stroke-width="3"/>
+<text x="812" y="116" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="600" fill="#1E2A38" text-anchor="start" letter-spacing="0" opacity="1">The entity, after</text>
+<rect x="832" y="130" width="200" height="10" rx="5" fill="#2E6E73" fill-opacity="0.8"/>
+<rect x="832" y="146" width="120" height="10" rx="5" fill="#2E6E73" fill-opacity="0.8"/>
+<rect x="832" y="162" width="240" height="10" rx="5" fill="#2E6E73" fill-opacity="0.8"/>
+<text x="812" y="184" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#8A8F8B" text-anchor="start" letter-spacing="0" opacity="1">what is still true. fast to read, small to send.</text>
+<rect x="797" y="221" width="370" height="126" rx="16" fill="url(#dots)"/>
+<rect x="790" y="214" width="370" height="126" rx="16" fill="#F3EDDF" stroke="#1E2A38" stroke-width="3"/>
+<text x="812" y="246" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="16" font-weight="600" fill="#1E2A38" text-anchor="start" letter-spacing="0" opacity="1">Archive entity</text>
+<rect x="832" y="260" width="150" height="10" rx="5" fill="#C8D9C5" stroke="#8A8F8B" stroke-width="1"/>
+<circle cx="820" cy="265" r="5" fill="none" stroke="#8A8F8B" stroke-width="1.5"/>
+<path d="M817.5,265 l2,2 l4,-4" fill="none" stroke="#8A8F8B" stroke-width="1.5" stroke-linecap="round"/>
+<rect x="832" y="276" width="230" height="10" rx="5" fill="#C8D9C5" stroke="#8A8F8B" stroke-width="1"/>
+<circle cx="820" cy="281" r="5" fill="none" stroke="#8A8F8B" stroke-width="1.5"/>
+<path d="M817.5,281 l2,2 l4,-4" fill="none" stroke="#8A8F8B" stroke-width="1.5" stroke-linecap="round"/>
+<rect x="832" y="292" width="180" height="10" rx="5" fill="#C8D9C5" stroke="#8A8F8B" stroke-width="1"/>
+<circle cx="820" cy="297" r="5" fill="none" stroke="#8A8F8B" stroke-width="1.5"/>
+<path d="M817.5,297 l2,2 l4,-4" fill="none" stroke="#8A8F8B" stroke-width="1.5" stroke-linecap="round"/>
+<rect x="832" y="308" width="160" height="10" rx="5" fill="#C8D9C5" stroke="#8A8F8B" stroke-width="1"/>
+<circle cx="820" cy="313" r="5" fill="none" stroke="#8A8F8B" stroke-width="1.5"/>
+<path d="M817.5,313 l2,2 l4,-4" fill="none" stroke="#8A8F8B" stroke-width="1.5" stroke-linecap="round"/>
+<text x="812" y="330" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#8A8F8B" text-anchor="start" letter-spacing="0" opacity="1">still searchable. in git, every pass is one revert away.</text>
+<rect x="40" y="376" width="192" height="30" rx="15.0" fill="#D6E4E1" stroke="#2E6E73" stroke-width="2"/>
+<text x="135.8" y="395.0" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.5" font-weight="700" fill="#2E6E73" text-anchor="middle" letter-spacing="1.2" opacity="1">nothing is ever deleted</text>
+<rect x="243.6" y="376" width="494" height="30" rx="15.0" fill="#F1D9CC" stroke="#C96F4A" stroke-width="2"/>
+<text x="490.6" y="395.0" font-family="Manrope, Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="11.5" font-weight="700" fill="#1E2A38" text-anchor="middle" letter-spacing="1.2" opacity="1">the last copy of an identifier is flagged and never bulk-approved</text>
+</svg>

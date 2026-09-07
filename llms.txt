@@ -1,0 +1,32 @@
+# setup-claude-memory
+
+> One command gives Claude a memory that survives the conversation. It lives in plain files on your Mac, syncs through accounts you already own (iCloud Drive or a private GitHub repo), and never touches a server of the author's.
+
+Install or upgrade with `npx setup-claude-memory@latest`. Always include `@latest`; a bare `npx setup-claude-memory` reuses a cached version range and can run a stale installer.
+
+The package registers two MCP servers with Claude Desktop and Claude Code:
+
+- `aim-memory-server` (bin/memory-server.mjs): knowledge graph of facts and entity relations in `memory.jsonl`. Search-first reads return matching observations, never whole entities. Tools: aim_memory_store, aim_memory_get, aim_memory_search, aim_memory_read_all, aim_memory_list_stores, aim_memory_add_facts, aim_memory_remove_facts, aim_memory_forget, aim_memory_link, aim_memory_unlink. Drop-in replacement for mcp-knowledge-graph.
+- `aim-deep-context-server` (bin/deep-context-server.mjs): long-form archive of session summaries and decisions with keyword and local semantic search. Tools: aim_deep_store, aim_deep_get, aim_deep_list, aim_deep_search, aim_deep_semantic_search, aim_deep_delete, aim_deep_extract_entities, aim_deep_graph_search, aim_deep_reindex.
+
+Data lives in `~/Library/Mobile Documents/com~apple~CloudDocs/Claude Memory/` by default, or with `--git` in a folder outside iCloud backed by a private GitHub repo the user owns. A scanner blocks any push that contains credentials. Nothing is deleted by the package; `--compact` archives with per-item approval.
+
+## Docs
+
+- [README](README.md): where your data lives, how it works, install, git mode, family memory, troubleshooting
+- [Getting started](docs/GETTING-STARTED.md): plain-language walkthrough for people who do not use Terminal
+- [Architecture](docs/ARCHITECTURE.md): how the pieces fit together
+- [AGENTS.md](AGENTS.md): instructions for AI coding agents working in this repository, including commands and what never to do
+
+## Commands
+
+- `npx setup-claude-memory@latest`: install, upgrade, or join from a second Mac
+- `npx setup-claude-memory@latest --git`: move memory into a private GitHub repo, or join an existing one
+- `npx setup-claude-memory@latest --scan`: scan memory for credentials
+- `npx setup-claude-memory@latest --compact`: propose finished observations to archive, approved one by one
+- `npx setup-claude-memory@latest --family`: deploy the shared family memory layer
+
+## Optional
+
+- [npm package](https://www.npmjs.com/package/setup-claude-memory)
+- [License](LICENSE): MIT

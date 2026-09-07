@@ -150,7 +150,7 @@ def hero(p):
     s += defs(p)
     s += f'<rect width="{W}" height="{H}" fill="{p["bg"]}"/>\n'
     # left text
-    s += eyebrow(p, 72, 112, "Kam Studios  ·  open source  ·  Mac")
+    s += eyebrow(p, 72, 112, "open source  ·  macOS  ·  MIT")
     s += text(p, 70, 188, "Memory that", size=66, weight=300, ls=-2)
     s += text(p, 70, 254, "stays yours.", size=66, weight=300, ls=-2)
     s += text(p, 72, 300, "Persistent memory for Claude. Plain files on your Mac,", size=17, fill=p["muted"])
@@ -172,7 +172,14 @@ def hero(p):
     for i, (nx, ny) in enumerate(nodes):
         fill = p["rust"] if i == 1 else p["card"]
         s += f'<circle cx="{nx}" cy="{ny}" r="{15 if i else 13}" fill="{fill}" stroke="{p["line"]}" stroke-width="4"/>\n'
-    s += mascot(p, 930, 206, scale=0.92)
+    art = os.environ.get("HERO_ART")
+    if art:
+        # The drawn character (docs/img/art/memory-card.png) in place of the SVG mascot.
+        # Used by render-png.py; the committed SVG heroes keep the vector mascot.
+        s += f'<ellipse cx="930" cy="378" rx="112" ry="9" fill="{p["shadow"]}" fill-opacity="{p["shadowop"]}"/>\n'
+        s += f'<image href="{art}" x="800" y="52" width="260" height="330" preserveAspectRatio="xMidYMax meet"/>\n'
+    else:
+        s += mascot(p, 930, 206, scale=0.92)
     s += "</svg>\n"
     return s
 
@@ -258,7 +265,7 @@ def architecture(p):
     # family band
     s += eyebrow(p, 460, 468, "Optional, shared with family", anchor="middle")
     s += box(p, 330, 486, 530, 96, dash="8 6", halftone=False)
-    s += text(p, 348, 516, "Kennedy Family Docs/Claude/Family Memory/", size=13, weight=600, mono=True)
+    s += text(p, 348, 516, "Shared iCloud folder/Claude/Family Memory/", size=13, weight=600, mono=True)
     s += text(p, 348, 538, "A shared iCloud folder both partners' Claudes read before answering", size=12, fill=p["muted"])
     s += text(p, 348, 556, "family questions: insurance, house, pets, shared money. Markdown, append-only log.", size=12, fill=p["muted"])
     s += arrow(p, [(145, 320), (145, 534), (322, 534)], color=p["teal"], dash="6 6", sw=2.5)
@@ -271,7 +278,7 @@ def architecture(p):
 # ────────────────────────────────────────────────────────────────────────────────
 def datalives(p):
     W, H = 1200, 520
-    s = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" role="img" aria-label="Where your memory goes: it is stored on your Mac as plain files, synced by your own iCloud or private GitHub account, and sent to Anthropic with each conversation the same as anything you type. There is no Kam Studios server; nothing phones home.">\n'
+    s = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" role="img" aria-label="Where your memory goes: it is stored on your Mac as plain files, synced by your own iCloud or private GitHub account, and sent to Anthropic with each conversation the same as anything you type. There is no server in the middle; nothing phones home.">\n'
     s += defs(p)
     s += f'<rect width="{W}" height="{H}" fill="{p["bg"]}"/>\n'
     cy = 262
@@ -284,7 +291,7 @@ def datalives(p):
         (40, "Your Mac", "stored as", "Plain files you can open, read, or edit any time.",
          "Delete a line to forget it. Delete the file to start over."),
         (150, "Your accounts", "synced by", "iCloud Drive by default, or a private GitHub repo you own.",
-         "Nobody else has a login. Not even Kam Studios."),
+         "Nobody else has a login. Not the people who wrote this."),
         (260, "Anthropic, with each conversation", "sent with", "The same as anything you type into Claude. Your plan's",
          "data policy is the one that applies, and it is the only third party."),
     ]
@@ -301,7 +308,7 @@ def datalives(p):
     # the row that does not exist
     y = 370
     s += box(p, 440, y, 480, 96, fill="none", stroke=p["ghost"], dash="7 7", halftone=False, sw=2)
-    s += text(p, 460, y + 30, "A Kam Studios server", size=16, weight=600, fill=p["ghost"])
+    s += text(p, 460, y + 30, "A server in the middle", size=16, weight=600, fill=p["ghost"])
     s += text(p, 460, y + 54, "Does not exist. Nothing phones home, nothing is collected,", size=12.5, fill=p["ghost"])
     s += text(p, 460, y + 72, "and the code that proves it is the code in this repo.", size=12.5, fill=p["ghost"])
     x0, y0, x1, y1 = 330, cy, 400, y + 48
@@ -423,10 +430,221 @@ def dayflow(p):
     return s
 
 
+# ────────────────────────────────────────────────────────────────────────────────
+def filechip(p, x, y, w, label, fill=None):
+    out = f'<rect x="{x}" y="{y}" width="{w}" height="30" rx="8" fill="{fill or p["card2"]}" stroke="{p["line"]}" stroke-width="2"/>\n'
+    out += text(p, x + 14, y + 20, label, size=12, mono=True)
+    return out
+
+
+def macbox(p, x, y, title, note):
+    s = box(p, x, y, 300, 190)
+    s += text(p, x + 20, y + 36, title, size=20, weight=300)
+    s += filechip(p, x + 20, y + 58, 260, "memory.jsonl")
+    s += filechip(p, x + 20, y + 96, 260, "deep/*.md")
+    s += text(p, x + 20, y + 160, note, size=12, fill=p["quiet"])
+    return s
+
+
+def gitsync(p):
+    W, H = 1200, 470
+    s = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" role="img" aria-label="Memory in git: each of your Macs pushes to one private GitHub repo you own every 15 minutes and pulls the other Mac\'s writes. A secret scan blocks any push containing a credential, a merge driver merges two Macs\' writes by meaning, and a second Mac joins by running the same command rather than cloning by hand.">\n'
+    s += defs(p)
+    s += f'<rect width="{W}" height="{H}" fill="{p["bg"]}"/>\n'
+    s += eyebrow(p, 190, 62, "Your first Mac", anchor="middle")
+    s += eyebrow(p, 600, 62, "One private repo, your GitHub login", anchor="middle")
+    s += eyebrow(p, 1010, 62, "Your second Mac", anchor="middle")
+    s += macbox(p, 40, 90, "Mac A", "writes locally, syncs in the background")
+    s += macbox(p, 860, 90, "Mac B", "same command, joins the same repo")
+    # repo
+    s += box(p, 450, 90, 300, 190)
+    s += text(p, 600, 126, "Private GitHub repo", size=20, weight=300, anchor="middle")
+    s += text(p, 600, 150, "github.com/you/claude-memory", size=11.5, fill=p["quiet"], anchor="middle", mono=True)
+    out, w1 = pill(p, 0, 0, "private"); out, w2 = pill(p, 0, 0, "you own it")
+    x = 600 - (w1 + w2 + 8) / 2
+    o, _ = pill(p, x, 176, "private", fill=p["card2"]); s += o
+    o, _ = pill(p, x + w1 + 8, 176, "you own it", fill=p["card2"]); s += o
+    s += text(p, 600, 232, "versioned. every change is a commit you can read", size=12, fill=p["quiet"], anchor="middle")
+    s += text(p, 600, 250, "and revert. only you have a login.", size=12, fill=p["quiet"], anchor="middle")
+    # arrows
+    for x0, x1 in ((340, 442), (860, 758)):
+        s += arrow(p, [(x0, 150), (x1, 150)], label="push, 15 min")
+        s += arrow(p, [(x1, 220), (x0, 220)], label="pull", ly=246)
+    # the three rules
+    rules = [
+        (40, "Scan before push", p["rust"], p["rustwash"], p["rust"] if p["bg"] == "#1A1A1A" else p["ink"],
+         "A password, key, or token blocks the push until you", "remove it. Personal data is reported, never blocks."),
+        (420, "Merges by meaning", p["teal"], p["tealwash"], p["teal"],
+         "Two Macs writing at once merge entity by entity,", "observations as a set. No conflict markers, ever."),
+        (800, "Join, do not clone", p["line"], p["card2"], p["ink"],
+         "The second Mac runs the same command and joins. A hand", "clone misses the merge driver and falls back to text merge."),
+    ]
+    for x, title, stroke, fill, color, l1, l2 in rules:
+        s += box(p, x, 330, 360, 108)
+        o, _ = pill(p, x + 20, 348, title, fill=fill, stroke=stroke, color=color); s += o
+        s += text(p, x + 20, 400, l1, size=12.5, fill=p["muted"])
+        s += text(p, x + 20, 418, l2, size=12.5, fill=p["muted"])
+    s += "</svg>\n"
+    return s
+
+
+def obsbar(p, x, y, w, kind):
+    if kind == "live":
+        return f'<rect x="{x}" y="{y}" width="{w}" height="10" rx="5" fill="{p["teal"]}" fill-opacity="0.8"/>\n'
+    if kind == "done":
+        return (f'<rect x="{x}" y="{y}" width="{w}" height="10" rx="5" fill="{p["sage"]}" stroke="{p["quiet"]}" stroke-width="1"/>\n'
+                f'<circle cx="{x-12}" cy="{y+5}" r="5" fill="none" stroke="{p["quiet"]}" stroke-width="1.5"/>\n'
+                f'<path d="M{x-14.5},{y+5} l2,2 l4,-4" fill="none" stroke="{p["quiet"]}" stroke-width="1.5" stroke-linecap="round"/>\n')
+    return (f'<rect x="{x}" y="{y}" width="{w}" height="10" rx="5" fill="{p["rustwash"]}" stroke="{p["rust"]}" stroke-width="1.5"/>\n'
+            f'<circle cx="{x-12}" cy="{y+5}" r="5" fill="none" stroke="{p["rust"]}" stroke-width="1.5"/>\n'
+            f'<line x1="{x-12}" y1="{y+2.5}" x2="{x-12}" y2="{y+6}" stroke="{p["rust"]}" stroke-width="1.5" stroke-linecap="round"/><circle cx="{x-12}" cy="{y+8}" r="0.8" fill="{p["rust"]}"/>\n')
+
+
+def compact(p):
+    W, H = 1200, 430
+    s = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" role="img" aria-label="Archiving with --compact: a project entity full of finished status notes; the tool proposes moves grouped by why, you approve each group, and the finished notes move to an archive entity where they stay searchable. Anything holding the last copy of an identifier is flagged and never bulk-approved. Nothing is ever deleted.">\n'
+    s += defs(p)
+    s += f'<rect width="{W}" height="{H}" fill="{p["bg"]}"/>\n'
+    s += eyebrow(p, 60, 62, "Before")
+    s += eyebrow(p, 600, 62, "You approve each group", anchor="middle")
+    s += eyebrow(p, 810, 62, "After")
+    # before
+    s += box(p, 40, 84, 380, 256)
+    s += text(p, 62, 116, "A project entity, months in", size=16, weight=600)
+    s += text(p, 62, 136, "981 observations, 809,000 characters", size=11.5, fill=p["quiet"], mono=True)
+    rows = [("live", 200), ("done", 150), ("done", 230), ("live", 120), ("done", 180), ("flag", 210), ("done", 160), ("live", 240)]
+    for i, (k, w) in enumerate(rows):
+        s += obsbar(p, 82, 156 + i * 20, w, k)
+    s += text(p, 62, 328, "teal: still true.  checked: finished status notes.  red: holds an identifier.", size=11, fill=p["quiet"])
+    # proposal
+    s += box(p, 470, 120, 260, 180, dash="8 6", sw=2)
+    s += text(p, 600, 152, "Proposed moves", size=15, weight=600, anchor="middle")
+    y = 170
+    for lbl in ("shipped  ·  12", "superseded  ·  7", "done, dated  ·  31"):
+        o, w = pill(p, 0, 0, lbl); o, _ = pill(p, 600 - w / 2, y, lbl, fill=p["card2"]); s += o; y += 34
+    s += text(p, 600, 288, "grouped by why. approved one group at a time.", size=11.5, fill=p["quiet"], anchor="middle")
+    s += arrow(p, [(420, 210), (462, 210)], label="--compact", ly=194)
+    s += arrow(p, [(730, 170), (782, 150)], label="what stays", ly=136)
+    s += arrow(p, [(730, 250), (782, 280)], label="what moves", ly=300)
+    # after: entity
+    s += box(p, 790, 84, 370, 110)
+    s += text(p, 812, 116, "The entity, after", size=16, weight=600)
+    for i, w in enumerate((200, 120, 240)):
+        s += obsbar(p, 832, 130 + i * 16, w, "live")
+    s += text(p, 812, 184, "what is still true. fast to read, small to send.", size=11.5, fill=p["quiet"])
+    # after: archive
+    s += box(p, 790, 214, 370, 126, fill=p["card2"])
+    s += text(p, 812, 246, "Archive entity", size=16, weight=600)
+    for i, w in enumerate((150, 230, 180, 160)):
+        s += obsbar(p, 832, 260 + i * 16, w, "done")
+    s += text(p, 812, 330, "still searchable. in git, every pass is one revert away.", size=11.5, fill=p["quiet"])
+    # footer rules
+    o, w = pill(p, 40, 376, "nothing is ever deleted", fill=p["tealwash"], stroke=p["teal"], color=p["teal"], h=30, size=11.5); s += o
+    o, _ = pill(p, 40 + w + 12, 376, "the last copy of an identifier is flagged and never bulk-approved", fill=p["rustwash"], stroke=p["rust"], color=p["rust"] if p["bg"] == "#1A1A1A" else p["ink"], h=30, size=11.5); s += o
+    s += "</svg>\n"
+    return s
+
+
+def searchfirst(p):
+    W, H = 1200, 310
+    s = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" role="img" aria-label="Search-first reads: against the same 981-observation entity, a naive lookup returned the whole entity, about 809,000 characters, while a search returns only the matching lines, about 13,000 characters, and reports how many matched versus how many it returned.">\n'
+    s += defs(p)
+    s += f'<rect width="{W}" height="{H}" fill="{p["bg"]}"/>\n'
+    s += eyebrow(p, 60, 56, "The same entity. 981 observations.")
+    # row 1: naive
+    s += text(p, 60, 106, "a naive lookup", size=13, weight=600, fill=p["muted"])
+    o, w = pill(p, 200, 88, 'get("Content_Strategy_App")', fill=p["card2"], mono=True, h=30, size=12); s += o
+    s += arrow(p, [(200 + w + 12, 103), (200 + w + 60, 103)])
+    bx = 200 + w + 72
+    s += f'<rect x="{bx+6}" y="{94}" width="{1140-bx}" height="20" rx="10" fill="url(#dots)"/>\n'
+    s += f'<rect x="{bx}" y="88" width="{1140-bx}" height="30" rx="15" fill="{p["rustwash"]}" stroke="{p["rust"]}" stroke-width="2"/>\n'
+    s += text(p, bx + 18, 108, "the whole entity. ~809,000 characters. the context window is gone.", size=12.5, weight=600, fill=p["rust"] if p["bg"] == "#1A1A1A" else p["ink"])
+    # row 2: search
+    s += text(p, 60, 196, "search-first", size=13, weight=600, fill=p["muted"])
+    o, w2 = pill(p, 200, 178, 'search("invite codes")', fill=p["card2"], mono=True, h=30, size=12); s += o
+    s += arrow(p, [(200 + w2 + 12, 193), (200 + w2 + 60, 193)])
+    bx2 = 200 + w2 + 72
+    bw = round((1140 - bx) * 13 / 809)
+    s += f'<rect x="{bx2}" y="178" width="{max(bw, 30)}" height="30" rx="15" fill="{p["tealwash"]}" stroke="{p["teal"]}" stroke-width="2"/>\n'
+    s += text(p, bx2 + max(bw, 30) + 14, 198, "only the matching lines. ~13,000 characters.", size=12.5, weight=600, fill=p["teal"])
+    s += text(p, bx2, 232, "and it says how many matched against how many it returned, so the assistant knows when to narrow.", size=12, fill=p["quiet"])
+    s += text(p, 60, 282, "Every response has a character budget. Over budget, the server returns fewer lines. It never cuts a response mid-JSON.", size=12, fill=p["quiet"])
+    s += "</svg>\n"
+    return s
+
+
+def family(p):
+    W, H = 1200, 430
+    s = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" role="img" aria-label="Family memory: you and your partner each keep your own private memory, and both of your Claudes read one shared iCloud folder before answering a family question. It holds a markdown file of shared facts, a facts.json for lookups, and an append-only changelog. Writes go one section at a time so two people never overwrite each other.">\n'
+    s += defs(p)
+    s += f'<rect width="{W}" height="{H}" fill="{p["bg"]}"/>\n'
+    s += person(p, 150, 150, "You")
+    s += person(p, 1050, 150, "Your partner")
+    for cx in (150, 1050):
+        s += box(p, cx - 110, 250, 220, 96)
+        s += text(p, cx, 280, "own memory", size=13, weight=600, anchor="middle")
+        s += text(p, cx, 300, "private. never shared.", size=11.5, fill=p["quiet"], anchor="middle")
+        s += f'<path d="M{cx-9},{318} a9,9 0 0 1 18,0 v6" fill="none" stroke="{p["line"]}" stroke-width="2.5"/>\n'
+        s += f'<rect x="{cx-14}" y="{323}" width="28" height="18" rx="4" fill="{p["teal"]}" stroke="{p["line"]}" stroke-width="2.5"/>\n'
+    # shared folder
+    s += box(p, 340, 90, 520, 220, dash="10 7", sw=3)
+    s += eyebrow(p, 600, 122, "Shared, both of you", anchor="middle")
+    s += text(p, 600, 150, "Shared iCloud folder/Claude/Family Memory/", size=14, weight=600, anchor="middle", mono=True)
+    chips = (("FAMILY_MEMORY.md", 366, "shared facts, one section per topic"),
+             ("facts.json", 366, "deductibles, plan ids, claim phones"),
+             ("changelog.md", 366, "append-only. who changed what, when"))
+    for i, (name, x, note) in enumerate(chips):
+        y = 172 + i * 40
+        s += filechip(p, x, y, 170, name)
+        s += text(p, x + 186, y + 20, note, size=12, fill=p["muted"])
+    # arrows
+    s += arrow(p, [(214, 150), (330, 150)], label="reads before a", label2="family question", ly=128)
+    s += arrow(p, [(986, 150), (870, 150)], label="reads before a", label2="family question", ly=128)
+    o, w = pill(p, 0, 0, "writes go one section at a time, so two people never overwrite each other", h=30, size=11.5)
+    o, _ = pill(p, 600 - w / 2, 322, "writes go one section at a time, so two people never overwrite each other", fill=p["tealwash"], stroke=p["teal"], color=p["teal"], h=30, size=11.5); s += o
+    s += text(p, 600, 380, "Routed by a block the installer adds to ~/.claude/CLAUDE.md on each Mac. Insurance, house, pets, shared money.", size=12, fill=p["quiet"], anchor="middle")
+    s += text(p, 600, 400, "Templates never overwrite your edits. Run it again any time.", size=12, fill=p["quiet"], anchor="middle")
+    s += "</svg>\n"
+    return s
+
+
+def memoryfile(p):
+    W, H = 1200, 250
+    s = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" role="img" aria-label="Your memory file: memory.jsonl is one JSON object per line. Each line is one memory. Delete a line and Claude forgets that one thing.">\n'
+    s += defs(p)
+    s += f'<rect width="{W}" height="{H}" fill="{p["bg"]}"/>\n'
+    s += box(p, 40, 40, 860, 172)
+    s += text(p, 62, 70, "memory.jsonl", size=13, weight=600, mono=True)
+    lines = [
+        ('{"type":"entity","name":"Alex","entityType":"person","observations":["works in film","moved to Nashville in 2024"]}', None),
+        ('{"type":"entity","name":"Greenhouse shoot","entityType":"project","observations":["drone pass first"]}', None),
+        ('{"type":"entity","name":"Old apartment","entityType":"place","observations":["lease ends in June"]}', "gone"),
+        ('{"type":"relation","from":"Alex","to":"Greenhouse shoot","relationType":"directs"}', None),
+    ]
+    for i, (ln, state) in enumerate(lines):
+        y = 100 + i * 28
+        ln = ln.replace("&", "&amp;").replace("<", "&lt;")
+        fill = p["ghost"] if state else p["ink"]
+        s += text(p, 62, y, ln, size=11.5, mono=True, fill=fill)
+        if state:
+            s += f'<line x1="60" y1="{y-4}" x2="720" y2="{y-4}" stroke="{p["rust"]}" stroke-width="2" stroke-linecap="round"/>\n'
+    o, _ = pill(p, 930, 56, "one line, one memory", fill=p["tealwash"], stroke=p["teal"], color=p["teal"], h=30, size=11.5); s += o
+    o, _ = pill(p, 930, 100, "delete a line, it forgets that", fill=p["rustwash"], stroke=p["rust"], color=p["rust"] if p["bg"] == "#1A1A1A" else p["ink"], h=30, size=11.5); s += o
+    s += text(p, 930, 160, "Plain text. Opens in TextEdit.", size=12.5, fill=p["muted"])
+    s += text(p, 930, 180, "Nothing to export, nothing to decode.", size=12.5, fill=p["muted"])
+    s += text(p, 930, 200, "Delete the file and you start over.", size=12.5, fill=p["muted"])
+    s += "</svg>\n"
+    return s
+
+
 FIGS = {"hero": hero, "architecture": architecture, "where-your-data-lives": datalives,
+        "git-sync": gitsync, "compact": compact, "search-first": searchfirst, "family-memory": family,
+        "memory-file": memoryfile,
         "boundary": boundary, "bridge": bridge, "dayflow": dayflow}
 ONLY = os.environ.get("THEMES")
+TOUR = {"boundary", "bridge", "dayflow"}   # explainer-page figures, not README ones
 for name, fn in FIGS.items():
+    if name in TOUR and not os.environ.get("TOUR"): continue
     for theme, pal in THEMES.items():
         if ONLY and theme not in ONLY.split(","): continue
         path = os.path.join(OUT, f"{name}-{theme}.svg")

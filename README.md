@@ -1,6 +1,6 @@
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/img/hero-dark.svg">
-  <img alt="setup-claude-memory. Memory that stays yours. Persistent memory for Claude, kept in plain files on your Mac and synced through accounts you already own." src="docs/img/hero-light.svg" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/hero-dark.png">
+  <img alt="setup-claude-memory. Memory that stays yours. Persistent memory for Claude, kept in plain files on your Mac and synced through accounts you already own." src="docs/img/hero-light.png" width="100%">
 </picture>
 
 # setup-claude-memory
@@ -26,7 +26,7 @@ that explains every step.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/where-your-data-lives-dark.svg">
-  <img alt="Your memory is stored on your Mac as plain files, synced by your own iCloud or private GitHub account, and sent to Anthropic with each conversation the same as anything you type. There is no Kam Studios server." src="docs/img/where-your-data-lives-light.svg" width="100%">
+  <img alt="Your memory is stored on your Mac as plain files, synced by your own iCloud or private GitHub account, and sent to Anthropic with each conversation the same as anything you type. There is no server in the middle." src="docs/img/where-your-data-lives-light.svg" width="100%">
 </picture>
 
 - **On your Mac, as plain text.** One folder, a few files, all readable in TextEdit. Delete a
@@ -36,7 +36,7 @@ that explains every step.
 - **With Anthropic, per conversation.** When Claude uses your memory, the relevant lines travel
   with the chat, exactly like anything you type into Claude. Your plan's data policy applies.
   That is the only third party, and it is one you already chose.
-- **Nowhere else.** No Kam Studios server. No analytics. No telemetry. The whole thing is a
+- **Nowhere else.** No server of ours. No analytics. No telemetry. The whole thing is a
   few files under [`bin/`](bin) and you can read them.
 
 Before anything is ever pushed to GitHub, a scanner reads your memory for credentials. A
@@ -97,6 +97,11 @@ already there.
 Memory can live in a private GitHub repo instead of a sync folder: versioned, reachable from
 any machine, and safe for two people or two Macs to write at once.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/git-sync-dark.svg">
+  <img alt="Each of your Macs pushes to one private GitHub repo you own every 15 minutes and pulls the other Mac's writes. A secret scan blocks any push containing a credential, a merge driver merges two Macs' writes by meaning, and a second Mac joins by running the same command rather than cloning by hand." src="docs/img/git-sync-light.svg" width="100%">
+</picture>
+
 ```bash
 npx setup-claude-memory@latest --git
 ```
@@ -134,6 +139,11 @@ npx setup-claude-memory@latest --scan
 
 ### Archive finished work (v1.9.0+)
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/compact-dark.svg">
+  <img alt="A project entity full of finished status notes. The tool proposes moves grouped by why, you approve each group, and the finished notes move to an archive entity where they stay searchable. Anything holding the last copy of an identifier is flagged and never bulk-approved. Nothing is ever deleted." src="docs/img/compact-light.svg" width="100%">
+</picture>
+
 ```bash
 npx setup-claude-memory@latest --compact
 ```
@@ -145,6 +155,11 @@ revertable. Anything holding the last copy of an identifier is flagged and never
 ---
 
 ## Family Memory (optional)
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/family-memory-dark.svg">
+  <img alt="You and your partner each keep your own private memory, and both of your Claudes read one shared iCloud folder before answering a family question. It holds a markdown file of shared facts, a facts.json for lookups, and an append-only changelog." src="docs/img/family-memory-light.svg" width="100%">
+</picture>
 
 If you share an iCloud folder with a partner, the installer can deploy a **Family Memory**
 template into `<shared folder>/Claude/Family Memory/` and add a routing block to
@@ -171,6 +186,11 @@ like it had worked. `@latest` forces npm to check the registry.
 
 ## Search-first reads, the detail (v1.6.0+)
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/search-first-dark.svg">
+  <img alt="Against the same 981-observation entity, a naive lookup returned the whole entity, about 809,000 characters. A search returns only the matching lines, about 13,000 characters, and reports how many matched versus how many it returned." src="docs/img/search-first-light.svg" width="100%">
+</picture>
+
 Once a project entity reaches a few hundred observations, a naive lookup returns the *whole*
 entity and swallows the context window. `aim-memory-server` stops that:
 
@@ -192,6 +212,11 @@ unchanged, and upgrading is re-running the installer.
 
 ## Your memory file
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/memory-file-dark.svg">
+  <img alt="memory.jsonl is one JSON object per line. Each line is one memory. Delete a line and Claude forgets that one thing." src="docs/img/memory-file-light.svg" width="100%">
+</picture>
+
 ```
 ~/Library/Mobile Documents/com~apple~CloudDocs/Claude Memory/memory.jsonl
 ```
@@ -212,4 +237,4 @@ moves outside iCloud and the installer tells you where.
 
 ---
 
-Made by [Kam Studios](https://kamstudios.com). MIT licensed.
+MIT licensed.

@@ -280,8 +280,9 @@ aborts the sync rather than corrupting anything (verified).
 
 ## Current state (update at end of each session)
 
-- **Local + GitHub:** v1.10.1, HEAD `91a1085` (6 commits past the `v1.9.0` tag — untagged). **npm
-  latest:** v1.10.1 — parity confirmed 2026-09-07.
+- **Local + GitHub:** v1.11.0, main `4113881`, tagged `v1.11.0`. **npm latest:** v1.11.0 (shasum
+  `474226b4…`). Parity confirmed 2026-09-12, and the published artifact was verified by a fresh npm
+  install + handshake. Tags v1.10.0/v1.10.1 were added retroactively the same day.
 - **Memory durability track:** all three parts shipped (v1.7.0–v1.10.1, 2026-09-05/06). See the
   durability-track section above.
 - **This session (2026-09-07), on Kamren's Mac Studio:** Kam reported "the memory says it's not
@@ -305,17 +306,22 @@ aborts the sync rather than corrupting anything (verified).
     fixes resolved: the skill-drift "3 issue(s)" reminder (0 skill drift found) and the 🔴
     "Kam Memory MCP reading EMPTY" reminder from the 2026-09-06 migration night (verified
     `Lawn_Management_System` and 185 other lines present and intact in `memory.jsonl`).
-- **2026-09-12, on Kam's MacBook Pro:** recovered the 168/14 divergence with nothing lost, and synced
-  (`0 0`). Built v1.11.0 (sync hardening, see Known limitations); Kam approved the publish.
-  Backups (bundle, worktree copy, before/after counts) are in
-  `~/Developer/claude-memory-backups/sync-recovery-20260912-162408/`. This Mac still runs the legacy
-  `mcp-knowledge-graph` server from `~/.claude.json` and both Codex configs (the `--git` fast-path
-  issue above).
+- **2026-09-12, on Kam's MacBook Pro:** recovered the 168/14 divergence with nothing lost. Shipped
+  v1.11.0 (sync hardening, see Known limitations); Kam did the npm OTP himself. Ran
+  `npx -y setup-claude-memory@latest` here, which refreshed sync.sh and the drivers; Desktop config
+  unchanged. Temporary recovery driver removed. **Restored the deep index** from 454 to 2,550
+  entries (every doc, all embedded). Backups are in `~/Developer/claude-memory-backups/`
+  (`sync-recovery-*`, `index-restore-*`, `pre-1.11.0-refresh-*`). Deep Context
+  `memory-sync-macbook-pro-recovered-2026-09-12`.
+  - **Mac Studio NOT yet upgraded.** Kam must run `npx setup-claude-memory@latest` there. Until
+    then its sync has no alert, and a two-sided deep-index change aborts its sync (safely).
+  - The deep index is now ~28MB (pretty-printed embeddings, ~11KB/doc) and is committed on every
+    change. At current doc growth it nears GitHub's 100MB file limit within months. Needs a design
+    call.
+  - This Mac still runs the legacy `mcp-knowledge-graph` server from `~/.claude.json` and both Codex
+    configs (the `--git` fast-path issue above).
 - **Open follow-ups:** Tiera family-memory handoff still pending (manual in-person step). Tiera's
   side of the durability track ("Set Tiera up on the new memory system" reminder) also still open —
   Kam's side only. `AGENTS.md` (Codex twin of this file, flagged broken 2026-08-30) not rechecked
   this session.
-- **Last shipped:** v1.9.0 tagged 2026-09-06 ("document the durability commands"). Local is 6
-  commits ahead of that tag (README dress-up + figure generator, PR #2, merged 2026-09-06) at
-  v1.10.1 in `package.json` — **not yet tagged or independently verified against a fresh
-  `npm view`**, though the version-parity check above shows npm already serving 1.10.1.
+- **Last shipped:** v1.11.0, 2026-09-12 (PR #6). Rollout: MacBook Pro done, Mac Studio pending.

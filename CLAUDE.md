@@ -252,13 +252,31 @@ which for a genuine divergence must run the registered merge driver, itself a ba
 command — `node` isn't found, the driver silently fails to run, git falls back to text merge,
 memory.jsonl gets conflict markers, and the script correctly detects the conflict and safely
 `rebase --abort`s. Net effect: sync silently no-ops (not corrupts) every time there's a real
-two-sided merge to do, which is exactly the case this whole system exists for. Fixed in
-`bin/git-migrate.js`'s `syncScript()` — exports `PATH` (the generating Node's own `dirname
-process.execPath`, plus both Homebrew prefixes) at the top of the generated script — and tests
-pass (28/28 relevant suite; full `npm test` chain exits 0). **Not yet committed or published** —
-Kam hadn't been asked. A Mac already migrated needs the same one-line `export PATH=...` prepended
-to its live `~/Library/Application Support/claude-memory-sync/sync.sh` by hand until a new version
-ships (Kamren's Mac Studio already patched 2026-09-07).
+two-sided merge to do, which is exactly the case this whole system exists for. First fixed in
+`0067447` (2026-09-07) but never published, and only the Mac Studio was hand-patched. Kam's MacBook
+Pro failed silently 330 times until 2026-09-12 (Deep Context
+`memory-sync-macbook-pro-recovered-2026-09-12`). **v1.11.0 closes the whole class:**
+- `syncScript()` PATH lists every dir holding `node` on the installer's PATH, plus
+  `dirname(process.execPath)` and the Homebrew prefixes. execPath alone resolves symlinks, which
+  missed `~/.local/bin` on the MacBook Pro.
+- sync.sh fails up front when node is missing, names the real cause of a conflict, and shows a Mac
+  notification after 3 consecutive failures, then every 24 (`sync.failures` next to `sync.log`).
+- Drivers are copied to `~/Library/Application Support/claude-memory-sync/`, not referenced in the
+  npx cache.
+- **A published fix still reaches a syncing Mac only when `npx setup-claude-memory@latest` (no
+  flags) runs on it.** That run is what refreshes sync.sh and the drivers (`refreshGitSync()` in
+  `bin/setup.js`). Every release that touches sync needs that run on every Mac.
+
+**`deep/index.json` was `merge=union`, and union CORRUPTS it (found 2026-09-12, fixed v1.11.0).**
+The index is a pretty-printed JSON array. Two machines adding a doc before syncing interleaved into
+invalid JSON, and `readIndex()` swallowed the parse error, so the next store rewrote the index with
+one entry. **Confirmed in store history:** 1,953 entries → invalid at `05ce351` → reset to 2 at
+`31b4812` (2026-09-08), then again → 1 at `ccf7f44`. The `.md` files survived. v1.11.0 ships
+`bin/deep-index-merge-driver.mjs` (`merge=aim-index`, id-keyed 3-way, refuses on conflict), upgrades
+old `.gitattributes` in place, and makes `readIndex()` throw on invalid JSON instead of returning
+`[]` (a 🟡 tool-contract change: tools now error visibly on a corrupt index). A Mac that has not
+upgraded yet has no `aim-index` driver. Git then falls back to a text merge, which conflicts and
+aborts the sync rather than corrupting anything (verified).
 
 ## Current state (update at end of each session)
 
@@ -279,15 +297,20 @@ ships (Kamren's Mac Studio already patched 2026-09-07).
      `rebase --abort`ed each time, so no data was lost, but this Mac had stopped receiving new
      commits from elsewhere. Fixed live (`sync.sh` patched by hand + manual sync run, confirmed
      `HEAD` == `origin/main`), and fixed upstream in `bin/git-migrate.js`'s `syncScript()`.
-  3. **Uncommitted:** the `git-migrate.js` fix (tests pass, 28/28 + full `npm test` exits 0). Kam
-     has not yet been asked to commit/publish it — do that first if picking this back up, since
-     every other Mac's already-installed `sync.sh` has the same bug until it ships.
+  3. The `git-migrate.js` fix was committed as `0067447`. It is still **unpublished**, so every
+     Mac's installed `sync.sh` has the bug until it ships or gets hand-patched.
   - Also ran `/skills-sync`: all 22 MANIFEST skills correct, no drift. One external-tool gap
     (`codebase-memory-mcp` not installed here) — flagged, install deferred to Kam (per-item
     approval rule; a Systems reminder is open). Closed two stale Systems reminders this session's
     fixes resolved: the skill-drift "3 issue(s)" reminder (0 skill drift found) and the 🔴
     "Kam Memory MCP reading EMPTY" reminder from the 2026-09-06 migration night (verified
     `Lawn_Management_System` and 185 other lines present and intact in `memory.jsonl`).
+- **2026-09-12, on Kam's MacBook Pro:** recovered the 168/14 divergence with nothing lost, and synced
+  (`0 0`). Built v1.11.0 (sync hardening, see Known limitations); Kam approved the publish.
+  Backups (bundle, worktree copy, before/after counts) are in
+  `~/Developer/claude-memory-backups/sync-recovery-20260912-162408/`. This Mac still runs the legacy
+  `mcp-knowledge-graph` server from `~/.claude.json` and both Codex configs (the `--git` fast-path
+  issue above).
 - **Open follow-ups:** Tiera family-memory handoff still pending (manual in-person step). Tiera's
   side of the durability track ("Set Tiera up on the new memory system" reminder) also still open —
   Kam's side only. `AGENTS.md` (Codex twin of this file, flagged broken 2026-08-30) not rechecked

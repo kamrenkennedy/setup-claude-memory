@@ -12,6 +12,8 @@ const mc            = require('./memory-compact');
 const homeDir       = os.homedir();
 const ICLOUD_BASE   = path.join(homeDir, 'Library', 'Mobile Documents', 'com~apple~CloudDocs');
 const CLAUDE_CONFIG = path.join(homeDir, 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json');
+const SYNC_DIR      = path.join(homeDir, 'Library', 'Application Support', 'claude-memory-sync');
+const SYNC_LABEL    = 'com.kamstudios.claude-memory-sync';
 
 const FAMILY_ROUTING_MARKER_OPEN  = '<!-- family-memory-routing v1 -->';
 const FAMILY_ROUTING_MARKER_CLOSE = '<!-- /family-memory-routing -->';
@@ -274,6 +276,9 @@ async function main() {
       config.mcpServers[deepServerName] = deepEntry(memoryPath);
       saveClaudeConfig(config);
 
+      const syncRepo = installedSyncRepo();
+      if (syncRepo) refreshGitSync(syncRepo);
+
       if (wasLegacy) {
         console.log(chalk.bold.green('✅  Memory server upgraded to search-first reads.\n'));
         console.log('  Searches now return matching observations instead of whole entities,');
@@ -289,7 +294,7 @@ async function main() {
       }]);
 
       if (!doUpdate) {
-        if (!wasLegacy) console.log(chalk.bold.green('✅  All good — nothing changed.\n'));
+        if (!wasLegacy) console.log(chalk.bold.green(syncRepo ? '✅  All good — background sync is up to date.\n' : '✅  All good — nothing changed.\n'));
         await maybePromptFamilySetup();
         return;
       }
@@ -469,6 +474,9 @@ async function runUpgrade({ config, serverName, deepServerName, firstName, memor
   config.mcpServers[deepServerName] = deepEntry(memoryPath);
 
   step(`${n++}. Saving Claude Desktop config...    `, () => saveClaudeConfig(config));
+
+  const syncRepo = installedSyncRepo();
+  if (syncRepo) refreshGitSync(syncRepo);
 
   if (!hasDeepDir) {
     step(`${n++}. Creating deep context archive...   `, () => {
@@ -717,6 +725,46 @@ function runScan(storePath) {
   return r.status === 0;
 }
 
+function scheduleSync(repoPath) {
+  fs.mkdirSync(SYNC_DIR, { recursive: true });
+  const script = path.join(SYNC_DIR, 'sync.sh');
+  fs.writeFileSync(script, gm.syncScript(repoPath, path.join(SYNC_DIR, 'sync.log')), { mode: 0o755 });
+  const plist = path.join(homeDir, 'Library', 'LaunchAgents', `${SYNC_LABEL}.plist`);
+  fs.mkdirSync(path.dirname(plist), { recursive: true });
+  fs.writeFileSync(plist, gm.launchAgentPlist(SYNC_LABEL, script, 900), 'utf8');
+  spawnSync('launchctl', ['unload', plist], { stdio: 'ignore' });
+  spawnSync('launchctl', ['load', plist], { stdio: 'ignore' });
+}
+
+// The repo this Mac's background sync already runs against, or null when this Mac has
+// never been set up for git sync. Read from the installed script itself, which is the
+// thing actually running.
+function installedSyncRepo() {
+  let text;
+  try { text = fs.readFileSync(path.join(SYNC_DIR, 'sync.sh'), 'utf8'); } catch { return null; }
+  const m = text.match(/^REPO=(".*")$/m);
+  if (!m) return null;
+  let repo;
+  try { repo = JSON.parse(m[1]); } catch { return null; }
+  return spawnSync('git', ['-C', repo, 'rev-parse', '--git-dir'], { stdio: 'ignore' }).status === 0 ? repo : null;
+}
+
+// sync.sh and the merge-driver registration are written once, at install time, so a
+// published fix reaches no Mac that is already syncing unless an upgrade rewrites them.
+// The launchd PATH fix sat unused on Kam's MacBook Pro for five days that way.
+function refreshGitSync(repoPath) {
+  step('   Refreshing background sync...          ', () => {
+    gm.registerMergeDrivers(repoPath, gm.installDrivers(SYNC_DIR));
+    const attrs = path.join(repoPath, '.gitattributes');
+    if (fs.existsSync(attrs)) {
+      const before = fs.readFileSync(attrs, 'utf8');
+      const after = gm.upgradeGitattributes(before);
+      if (after !== before) fs.writeFileSync(attrs, after, 'utf8');
+    }
+    scheduleSync(repoPath);
+  });
+}
+
 async function runGitMigration({ config, serverName, memoryPath }) {
   const firstName = serverName.replace(/-Memory$/i, '');
   console.log(chalk.bold.cyan('\n📦  Move your memory into a private git repo\n'));
@@ -823,8 +871,8 @@ async function runGitMigration({ config, serverName, memoryPath }) {
     }
   });
 
-  step('4. Installing the merge driver...           ', () => {
-    gm.registerMergeDriver(repoPath, path.join(__dirname, 'memory-merge-driver.mjs'));
+  step('4. Installing the merge drivers...          ', () => {
+    gm.registerMergeDrivers(repoPath, gm.installDrivers(SYNC_DIR));
   });
 
   step('5. Committing...                            ', () => {
@@ -855,19 +903,7 @@ async function runGitMigration({ config, serverName, memoryPath }) {
   let parked;
   step('8. Linking the old location...              ', () => { parked = gm.createBridge(memoryPath, repoPath); });
 
-  step('9. Scheduling background sync...            ', () => {
-    const dir = path.join(homeDir, 'Library', 'Application Support', 'claude-memory-sync');
-    fs.mkdirSync(dir, { recursive: true });
-    const script = path.join(dir, 'sync.sh');
-    const log = path.join(dir, 'sync.log');
-    fs.writeFileSync(script, gm.syncScript(repoPath, log), { mode: 0o755 });
-    const label = 'com.kamstudios.claude-memory-sync';
-    const plist = path.join(homeDir, 'Library', 'LaunchAgents', `${label}.plist`);
-    fs.mkdirSync(path.dirname(plist), { recursive: true });
-    fs.writeFileSync(plist, gm.launchAgentPlist(label, script, 900), 'utf8');
-    spawnSync('launchctl', ['unload', plist], { stdio: 'ignore' });
-    spawnSync('launchctl', ['load', plist], { stdio: 'ignore' });
-  });
+  step('9. Scheduling background sync...            ', () => scheduleSync(repoPath));
 
   console.log('');
   console.log(chalk.bold.green('✅  Your memory is in a private git repo.\n'));
@@ -914,8 +950,8 @@ async function runGitJoin({ repoName, repoPath, memoryPath, account, firstName }
     }
   });
 
-  step('2. Installing the merge driver...          ', () => {
-    gm.registerMergeDriver(repoPath, path.join(__dirname, 'memory-merge-driver.mjs'));
+  step('2. Installing the merge drivers...         ', () => {
+    gm.registerMergeDrivers(repoPath, gm.installDrivers(SYNC_DIR));
   });
 
   // Scan what actually came down, rather than this machine's old folder. Cheap, and it
@@ -940,18 +976,7 @@ async function runGitJoin({ repoName, repoPath, memoryPath, account, firstName }
     console.log(chalk.dim('     (the old path was already a link from another Mac — replaced, nothing parked)'));
   }
 
-  step('5. Scheduling background sync...           ', () => {
-    const dir = path.join(homeDir, 'Library', 'Application Support', 'claude-memory-sync');
-    fs.mkdirSync(dir, { recursive: true });
-    const script = path.join(dir, 'sync.sh');
-    fs.writeFileSync(script, gm.syncScript(repoPath, path.join(dir, 'sync.log')), { mode: 0o755 });
-    const label = 'com.kamstudios.claude-memory-sync';
-    const plist = path.join(homeDir, 'Library', 'LaunchAgents', `${label}.plist`);
-    fs.mkdirSync(path.dirname(plist), { recursive: true });
-    fs.writeFileSync(plist, gm.launchAgentPlist(label, script, 900), 'utf8');
-    spawnSync('launchctl', ['unload', plist], { stdio: 'ignore' });
-    spawnSync('launchctl', ['load', plist], { stdio: 'ignore' });
-  });
+  step('5. Scheduling background sync...           ', () => scheduleSync(repoPath));
 
   console.log('');
   console.log(chalk.bold.green('✅  This Mac is on your shared memory.\n'));

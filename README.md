@@ -114,6 +114,12 @@ folder is renamed rather than deleted.
 observations as a proper three-way set, so two machines writing at the same time do not produce
 a conflict to clear. Git's own options are both wrong here: its text merge leaves conflict markers
 that make the file unparseable, and `merge=union` duplicates entity lines into a corrupt graph.
+The deep-context index gets its own driver too (v1.11.0+), merging entries by id: `merge=union`
+turned two Macs' new documents into invalid JSON.
+
+**A failing sync tells you.** After three failed syncs in a row (about 45 minutes) you get a Mac
+notification, repeated every six hours until it recovers, plus one when it does. Details are in
+`~/Library/Application Support/claude-memory-sync/sync.log`.
 
 **Locations that sync are refused, not warned about.** iCloud corrupts git's internals and
 Dropbox rewrites timestamps, both silently. `~/Documents` and `~/Desktop` are iCloud-backed
@@ -130,6 +136,17 @@ It notices the repo already exists and **joins** it. Cloning by hand is not enou
 driver lives in `.git/config`, which a clone does not carry, so a hand-cloned Mac silently falls
 back to git's text merge. The join step installs it, and reports anything that Mac had written
 locally that never reached the repo.
+
+### Getting fixes onto a Mac that already syncs
+
+```bash
+npx setup-claude-memory@latest
+```
+
+No flags. The sync script and merge drivers are written onto each Mac at install time, so a new
+version reaches a syncing Mac only when this runs there. It refreshes both, and copies the drivers
+to `~/Library/Application Support/claude-memory-sync/` rather than leaving them in the npx cache,
+which can be cleared at any time. Run it on **every** Mac after an update.
 
 ### Check for credentials at any time
 
@@ -234,6 +251,7 @@ moves outside iCloud and the installer tells you where.
 | Memory not syncing to second Mac | Make sure iCloud Drive is on and signed in. Wait about a minute after writing. |
 | `npx: command not found` | Install Node.js from [nodejs.org](https://nodejs.org) |
 | First launch after an update says the server disconnected | Expected once: `@latest` is downloading the new version. Quit and reopen. |
+| Notification: "Memory has failed to sync N times in a row" | Read the last lines of `~/Library/Application Support/claude-memory-sync/sync.log`. Offline is harmless and clears itself. Anything else: run `npx setup-claude-memory@latest` on that Mac. |
 
 ---
 

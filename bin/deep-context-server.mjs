@@ -91,13 +91,27 @@ function checkForUpdates() {
 
 // ─── Index helpers ───────────────────────────────────────────────────────────
 
+// A missing index is an empty archive. An UNREADABLE one is not: until v1.11.0 a parse
+// failure also returned [], and the next store rewrote the index with a single entry.
+// That silently dropped 1,953 entries on 2026-09-08. Refuse instead, so the damage stops
+// at a visible error rather than being written over.
 function readIndex() {
-  try { return JSON.parse(fs.readFileSync(INDEX_PATH, 'utf8')); }
-  catch { return []; }
+  let raw;
+  try { raw = fs.readFileSync(INDEX_PATH, 'utf8'); }
+  catch (err) { if (err.code === 'ENOENT') return []; throw err; }
+  if (raw.trim() === '') return [];
+  try { return JSON.parse(raw); }
+  catch {
+    throw new Error(`${INDEX_PATH} is not valid JSON, so nothing was read or written. ` +
+      'Restore it from git (the store is versioned) before storing more documents.');
+  }
 }
 
+// Temp file plus rename, so a reader never sees a half-written index.
 function writeIndex(index) {
-  fs.writeFileSync(INDEX_PATH, JSON.stringify(index, null, 2), 'utf8');
+  const tmp = `${INDEX_PATH}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(index, null, 2), 'utf8');
+  fs.renameSync(tmp, INDEX_PATH);
 }
 
 function upsertIndex(entry) {

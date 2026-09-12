@@ -254,11 +254,29 @@ memory.jsonl gets conflict markers, and the script correctly detects the conflic
 `rebase --abort`s. Net effect: sync silently no-ops (not corrupts) every time there's a real
 two-sided merge to do, which is exactly the case this whole system exists for. Fixed in
 `bin/git-migrate.js`'s `syncScript()` — exports `PATH` (the generating Node's own `dirname
-process.execPath`, plus both Homebrew prefixes) at the top of the generated script — and tests
-pass (28/28 relevant suite; full `npm test` chain exits 0). **Not yet committed or published** —
-Kam hadn't been asked. A Mac already migrated needs the same one-line `export PATH=...` prepended
-to its live `~/Library/Application Support/claude-memory-sync/sync.sh` by hand until a new version
-ships (Kamren's Mac Studio already patched 2026-09-07).
+process.execPath`, plus both Homebrew prefixes) at the top of the generated script.
+**Committed in `0067447` (2026-09-07) but NOT published** — npm 1.10.1 went out 2026-09-06, the day
+before. A Mac already migrated needs the `export PATH=...` line added to its live
+`~/Library/Application Support/claude-memory-sync/sync.sh` by hand until a new version ships.
+- **node is not always Homebrew.** Kam's MacBook Pro runs `~/.local/bin/node` (a symlink into
+  `~/.hermes/node/bin`). A Homebrew-only hand patch still fails there, so the patch must name the
+  Mac's actual node dir. Also, `process.execPath` resolves symlinks, so the committed fix bakes in
+  the symlink *target* (`~/.hermes/node/bin`), not `~/.local/bin`. It works, but breaks silently
+  again if that node moves.
+- **Per-Mac status:** Mac Studio hand-patched 2026-09-07. MacBook Pro was **unpatched until
+  2026-09-12**: 330 silent FAILs, 168 local vs 14 remote commits. Recovered and patched that day.
+  Details are in Deep Context `memory-sync-macbook-pro-recovered-2026-09-12`.
+
+**`deep/index.json` is `merge=union`, and union CORRUPTS it (found 2026-09-12).** The index is a
+pretty-printed JSON array. When both machines add a deep doc before syncing, git's line union
+interleaves the two sides into invalid JSON, and nothing refuses. Proven in a dry run of the
+MacBook Pro recovery. It is worse than it looks: `readIndex()` in `bin/deep-context-server.mjs`
+swallows the parse error and returns `[]`, so the next `aim_deep_store` silently rewrites the
+index with ONE entry. ~2,095 of ~2,540 `.md` docs already have no index entry; this is a plausible
+cause, unconfirmed. Recovery used an id-keyed 3-way driver (`aim-index`). **It is installed on the
+MacBook Pro only**, at `~/Library/Application Support/claude-memory-sync/index-merge-driver.mjs`,
+via `.git/info/attributes` + `merge.aim-index.*` in the store's git config. It is not in the
+package. Every other Mac still has the union bug until a driver ships.
 
 ## Current state (update at end of each session)
 
@@ -279,9 +297,14 @@ ships (Kamren's Mac Studio already patched 2026-09-07).
      `rebase --abort`ed each time, so no data was lost, but this Mac had stopped receiving new
      commits from elsewhere. Fixed live (`sync.sh` patched by hand + manual sync run, confirmed
      `HEAD` == `origin/main`), and fixed upstream in `bin/git-migrate.js`'s `syncScript()`.
-  3. **Uncommitted:** the `git-migrate.js` fix (tests pass, 28/28 + full `npm test` exits 0). Kam
-     has not yet been asked to commit/publish it — do that first if picking this back up, since
-     every other Mac's already-installed `sync.sh` has the same bug until it ships.
+  3. The `git-migrate.js` fix was committed as `0067447`. It is still **unpublished**, so every
+     Mac's installed `sync.sh` has the bug until it ships or gets hand-patched.
+- **2026-09-12, on Kam's MacBook Pro:** recovered the 168/14 divergence with nothing lost. Store at
+  `668ec01`+ and synced (`0 0`). Live `sync.sh` hand-patched (`~/.local/bin` first). Temporary
+  `aim-index` driver installed (see Known limitations). Backups (bundle, worktree copy, before/after
+  counts) are in `~/Developer/claude-memory-backups/sync-recovery-20260912-162408/`. This Mac still
+  runs the legacy `mcp-knowledge-graph` server from `~/.claude.json` and both Codex configs (the
+  `--git` fast-path issue above). Publish of 1.10.2 is pending Kam's call.
   - Also ran `/skills-sync`: all 22 MANIFEST skills correct, no drift. One external-tool gap
     (`codebase-memory-mcp` not installed here) — flagged, install deferred to Kam (per-item
     approval rule; a Systems reminder is open). Closed two stale Systems reminders this session's

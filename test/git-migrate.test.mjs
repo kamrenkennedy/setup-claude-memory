@@ -123,7 +123,7 @@ console.log('\n=== 7. Merge driver is registered so a spaced path still works ==
   const driver = path.join(__dirname, '..', 'bin', 'memory-merge-driver.mjs');
 
   M.git(repo, ['init', '-q']);
-  M.registerMergeDriver(repo, driver);
+  M.registerMergeDrivers(repo, path.dirname(driver));
   const configured = M.git(repo, ['config', 'merge.aim-memory.driver']).trim();
   ok('driver path is quoted', configured.includes(`'${driver}'`), configured);
 
@@ -209,7 +209,7 @@ console.log('\n=== 10. Unattended sync survives a genuine concurrent edit ===');
     M.git(dir, ['config', 'user.email', 't@test']);
     M.git(dir, ['config', 'user.name', 'T']);
     M.git(dir, ['config', 'pull.rebase', 'true']);
-    M.registerMergeDriver(dir, driver);
+    M.registerMergeDrivers(dir, path.dirname(driver));
   };
 
   // Machine A creates the store and pushes.
@@ -281,7 +281,7 @@ console.log('\n=== 11. A clone does not carry the merge driver — the join must
   fs.mkdirSync(mac1);
   M.git(mac1, ['init', '-q', '-b', 'main']);
   M.git(mac1, ['config', 'user.email', 't@t']); M.git(mac1, ['config', 'user.name', 'T']);
-  M.registerMergeDriver(mac1, driver);
+  M.registerMergeDrivers(mac1, path.dirname(driver));
   fs.writeFileSync(path.join(mac1, '.gitattributes'), M.GITATTRIBUTES);
   fs.writeFileSync(path.join(mac1, 'memory.jsonl'), [MK, ent('P', ['base'])].join('\n'));
   M.git(mac1, ['add', '-A']); M.git(mac1, ['commit', '-qm', 'base']);
@@ -294,7 +294,7 @@ console.log('\n=== 11. A clone does not carry the merge driver — the join must
      'driver was unexpectedly present — the join step would be unnecessary');
 
   // What the join step does.
-  M.registerMergeDriver(mac2, driver);
+  M.registerMergeDrivers(mac2, path.dirname(driver));
   ok('registering it on the second machine fixes that',
      spawnSync('git', ['-C', mac2, 'config', 'merge.aim-memory.driver'], { encoding: 'utf8' }).status === 0);
 
@@ -376,6 +376,165 @@ console.log('\n=== 13. A bridge symlink synced from another Mac is replaced, not
   ok('a missing path just gets linked', M.createBridge(fresh, repo) === null && fs.existsSync(fresh));
 
   fs.rmSync(base, { recursive: true, force: true });
+}
+
+// ─── 14. The deep index survives two machines adding docs at once ────────────
+console.log('\n=== 14. Concurrent deep docs: the index stays valid JSON ===');
+{
+  // Real case, 2026-09-08: deep/index.json was merge=union, and two machines each adding
+  // a doc interleaved into invalid JSON that the server then reset to one entry.
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'aim-index-sync-'));
+  const bare = path.join(base, 'remote.git');
+  const A = path.join(base, 'macA');
+  const B = path.join(base, 'macB');
+  const binDir = path.join(__dirname, '..', 'bin');
+  const MK = '{"type":"_aim","source":"mcp-knowledge-graph"}';
+  const index = ids => JSON.stringify(ids.map(id => ({ id, summary: id })), null, 2);
+  const addDoc = (dir, ids, id) => {
+    fs.writeFileSync(path.join(dir, 'deep', `${id}.md`), id);
+    fs.writeFileSync(path.join(dir, 'deep', 'index.json'), index([...ids, id]));
+  };
+
+  // Prove the old attribute really does corrupt this exact input, so a pass below means
+  // something.
+  const t = p => path.join(base, p);
+  fs.writeFileSync(t('union-base'), index(['base'])); fs.writeFileSync(t('union-ours'), index(['base', 'from-a'])); fs.writeFileSync(t('union-theirs'), index(['base', 'from-b']));
+  spawnSync('git', ['merge-file', '--union', t('union-ours'), t('union-base'), t('union-theirs')]);
+  let unionValid = true;
+  try { JSON.parse(fs.readFileSync(t('union-ours'), 'utf8')); } catch { unionValid = false; }
+  ok('merge=union corrupts this input (the old behaviour)', !unionValid);
+
+  execFileSync('git', ['init', '-q', '--bare', '-b', 'main', bare]);
+  const setup = dir => {
+    M.git(dir, ['config', 'user.email', 't@test']);
+    M.git(dir, ['config', 'user.name', 'T']);
+    M.git(dir, ['config', 'pull.rebase', 'true']);
+    M.registerMergeDrivers(dir, binDir);
+  };
+  fs.mkdirSync(path.join(A, 'deep'), { recursive: true });
+  M.git(A, ['init', '-q', '-b', 'main']);
+  setup(A);
+  fs.writeFileSync(path.join(A, '.gitattributes'), M.GITATTRIBUTES);
+  fs.writeFileSync(path.join(A, 'memory.jsonl'), MK);
+  addDoc(A, [], 'base');
+  M.git(A, ['add', '-A']); M.git(A, ['commit', '-qm', 'base']);
+  M.git(A, ['remote', 'add', 'origin', bare]); M.git(A, ['push', '-qu', 'origin', 'main']);
+  execFileSync('git', ['clone', '-q', bare, B]);
+  setup(B);
+
+  addDoc(A, ['base'], 'from-a');
+  addDoc(B, ['base'], 'from-b');
+
+  const runSync = (dir, tag) => {
+    const script = path.join(base, `sync-${tag}.sh`);
+    const log = path.join(base, tag, 'sync.log');
+    fs.mkdirSync(path.dirname(log), { recursive: true });
+    fs.writeFileSync(script, M.syncScript(dir, log), { mode: 0o755 });
+    const r = spawnSync('/bin/sh', [script], { encoding: 'utf8' });
+    return { ...r, logText: fs.existsSync(log) ? fs.readFileSync(log, 'utf8') : '' };
+  };
+  ok('machine A syncs', runSync(A, 'A').status === 0);
+  const rB = runSync(B, 'B');
+  ok('machine B syncs over A without a conflict', rB.status === 0, rB.logText);
+  runSync(A, 'A');
+
+  let finalIndex = null;
+  try { finalIndex = JSON.parse(fs.readFileSync(path.join(A, 'deep', 'index.json'), 'utf8')); } catch { /* asserted */ }
+  ok('the index is still valid JSON', Array.isArray(finalIndex));
+  ok('and holds every machine\'s docs', finalIndex && ['base', 'from-a', 'from-b'].every(id => finalIndex.some(e => e.id === id)),
+     JSON.stringify(finalIndex));
+
+  fs.rmSync(base, { recursive: true, force: true });
+}
+
+// ─── 15. A failing sync says so on screen ────────────────────────────────────
+console.log('\n=== 15. Repeated sync failures raise an alert, and recovery clears it ===');
+{
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'aim-alert-'));
+  const log = path.join(base, 'sync.log');
+  const notified = path.join(base, 'notified');
+  const notifier = path.join(base, 'notify.sh');
+  fs.writeFileSync(notifier, `#!/bin/sh\necho "$1" >> "${notified}"\n`, { mode: 0o755 });
+  const env = { ...process.env, AIM_SYNC_NOTIFY: notifier };
+  const run = repo => {
+    const script = path.join(base, 'sync.sh');
+    fs.writeFileSync(script, M.syncScript(repo, log), { mode: 0o755 });
+    return spawnSync('/bin/sh', [script], { encoding: 'utf8', env });
+  };
+  const readN = () => (fs.existsSync(notified) ? fs.readFileSync(notified, 'utf8') : '');
+
+  const missing = path.join(base, 'no-such-repo');
+  const codes = [run(missing).status, run(missing).status];
+  ok('failures exit non-zero', codes.every(c => c === 1), JSON.stringify(codes));
+  ok('no alert for the first two', readN() === '', readN());
+  run(missing);
+  ok('the third consecutive failure alerts', /failed to sync 3 times/.test(readN()), readN());
+  ok('and the log records it', /ALERT shown after 3/.test(fs.readFileSync(log, 'utf8')));
+
+  // Now the repo exists and syncs.
+  const bare = path.join(base, 'remote.git');
+  const repo = path.join(base, 'repo');
+  execFileSync('git', ['init', '-q', '--bare', '-b', 'main', bare]);
+  fs.mkdirSync(repo);
+  M.git(repo, ['init', '-q', '-b', 'main']);
+  M.git(repo, ['config', 'user.email', 't@test']); M.git(repo, ['config', 'user.name', 'T']);
+  fs.writeFileSync(path.join(repo, 'memory.jsonl'), '{"type":"_aim","source":"mcp-knowledge-graph"}');
+  M.git(repo, ['add', '-A']); M.git(repo, ['commit', '-qm', 'base']);
+  M.git(repo, ['remote', 'add', 'origin', bare]); M.git(repo, ['push', '-qu', 'origin', 'main']);
+
+  const good = run(repo);
+  ok('a working sync exits 0', good.status === 0, good.stderr + fs.readFileSync(log, 'utf8'));
+  ok('recovery is logged', /OK syncing again after 3/.test(fs.readFileSync(log, 'utf8')));
+  ok('recovery is announced, since the failure was', /syncing again/.test(readN()), readN());
+  ok('the failure count is cleared', !fs.existsSync(path.join(base, 'sync.failures')));
+
+  // node must be reachable through a symlinked install too, not only via its target.
+  const script = M.syncScript(repo, log);
+  const pathLine = script.split('\n').find(l => l.startsWith('export PATH='));
+  ok('PATH includes the installer\'s own node dir', pathLine.includes(JSON.stringify(path.dirname(process.execPath))), pathLine);
+  const onPath = (process.env.PATH || '').split(path.delimiter)
+    .find(d => d && !d.includes('node_modules') && fs.existsSync(path.join(d, 'node')));
+  ok('PATH includes the node dir as found on PATH', !onPath || pathLine.includes(JSON.stringify(onPath)), `${onPath} :: ${pathLine}`);
+
+  fs.rmSync(base, { recursive: true, force: true });
+}
+
+// ─── 16. Existing stores are upgraded off merge=union ────────────────────────
+console.log('\n=== 16. .gitattributes from v1.7–v1.10 is upgraded in place ===');
+{
+  const old = `# Memory stores merge semantically — see bin/memory-merge-driver.mjs.
+# Git's text merge would leave conflict markers (unparseable), and merge=union would
+# duplicate entity lines (corrupt graph). Neither is acceptable unattended.
+memory.jsonl merge=aim-memory
+memory-*.jsonl merge=aim-memory
+
+# Deep-context docs are write-once with unique ids, so they cannot truly conflict.
+deep/index.json merge=union
+`;
+  const up = M.upgradeGitattributes(old);
+  ok('the old file becomes exactly the current one', up === M.GITATTRIBUTES, up);
+  ok('upgrading twice changes nothing', M.upgradeGitattributes(up) === up);
+  ok('a current file is left alone', M.upgradeGitattributes(M.GITATTRIBUTES) === M.GITATTRIBUTES);
+  const custom = 'memory.jsonl merge=aim-memory\n*.pdf binary\ndeep/index.json merge=union\n';
+  const upCustom = M.upgradeGitattributes(custom);
+  ok('a hand-edited file keeps its other lines', upCustom.includes('*.pdf binary') && upCustom.includes('deep/index.json merge=aim-index')
+     && !/deep\/index\.json merge=union/.test(upCustom), upCustom);
+
+  // Drivers are installed OUT of the npx cache, into a path with spaces, and registered quoted.
+  const dest = fs.mkdtempSync(path.join(os.tmpdir(), 'aim drivers '));
+  M.installDrivers(dest);
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'aim-reg-'));
+  M.git(repo, ['init', '-q']);
+  M.registerMergeDrivers(repo, dest);
+  for (const [key, file] of [['aim-memory', 'memory-merge-driver.mjs'], ['aim-index', 'deep-index-merge-driver.mjs']]) {
+    const installed = path.join(dest, file);
+    ok(`${file} is installed`, fs.existsSync(installed)
+       && fs.readFileSync(installed, 'utf8') === fs.readFileSync(path.join(__dirname, '..', 'bin', file), 'utf8'));
+    ok(`${key} is registered from the installed copy, quoted`,
+       M.git(repo, ['config', `merge.${key}.driver`]).includes(`'${installed}'`));
+  }
+  fs.rmSync(dest, { recursive: true, force: true });
+  fs.rmSync(repo, { recursive: true, force: true });
 }
 
 console.log(`\n${fail === 0 ? 'ALL PASS' : 'FAILURES'} — ${pass} passed, ${fail} failed\n`);

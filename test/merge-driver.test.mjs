@@ -246,5 +246,58 @@ console.log('\n=== 12. A corrupt side leaves a real conflict rather than silent 
   fs.rmSync(repo, { recursive: true, force: true });
 }
 
+// ─── Deep-context index driver (bin/deep-index-merge-driver.mjs) ─────────────
+const INDEX_DRIVER = path.join(__dirname, '..', 'bin', 'deep-index-merge-driver.mjs');
+const idx = (...ids) => JSON.stringify(ids.map(id => (typeof id === 'string' ? { id, summary: id } : id)), null, 2);
+function runIndexDriver(base, ours, theirs) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aim-index-'));
+  const p = n => path.join(dir, n);
+  if (base !== null) fs.writeFileSync(p('base'), base);
+  fs.writeFileSync(p('ours'), ours);
+  fs.writeFileSync(p('theirs'), theirs);
+  const r = spawnSync('node', [INDEX_DRIVER, p('base'), p('ours'), p('theirs'), 'deep/index.json'], { encoding: 'utf8' });
+  const out = fs.readFileSync(p('ours'), 'utf8');
+  fs.rmSync(dir, { recursive: true, force: true });
+  return { code: r.status, out, stderr: r.stderr };
+}
+
+console.log('\n=== 13. Index: both machines add a doc — the case union corrupted ===');
+{
+  const { code, out } = runIndexDriver(idx('a'), idx('a', 'from-kam'), idx('a', 'from-studio'));
+  ok('exits 0', code === 0, `code=${code}`);
+  let parsed = null;
+  try { parsed = JSON.parse(out); } catch { /* asserted below */ }
+  ok('result is valid JSON', parsed !== null, out.slice(0, 200));
+  ok('keeps both additions, ours first', parsed && JSON.stringify(parsed.map(e => e.id)) === '["a","from-kam","from-studio"]',
+     parsed && JSON.stringify(parsed.map(e => e.id)));
+  ok('written in the server\'s own format', out === idx('a', 'from-kam', 'from-studio'));
+}
+
+console.log('\n=== 14. Index: deletions and one-sided edits are honoured ===');
+{
+  const { out } = runIndexDriver(idx('a', 'b'), idx('a'), idx('a', 'b', 'c'));
+  ok('a doc deleted on one side stays deleted', JSON.stringify(JSON.parse(out).map(e => e.id)) === '["a","c"]', out);
+
+  const edited = { id: 'a', summary: 'reindexed' };
+  const r = runIndexDriver(idx('a'), idx('a', 'x'), idx(edited));
+  ok('an entry changed only on their side takes their version',
+     JSON.parse(r.out).find(e => e.id === 'a').summary === 'reindexed', r.out);
+}
+
+console.log('\n=== 15. Index: refuses what it cannot merge safely ===');
+{
+  const both = runIndexDriver(idx('a'), idx({ id: 'a', summary: 'kam' }), idx({ id: 'a', summary: 'studio' }));
+  ok('same id changed differently on both sides is refused', both.code === 1, both.stderr);
+
+  const broken = runIndexDriver(idx('a'), idx('a', 'b'), '[\n  {\n    "id": "a"\n  }\n    "id": "c"');
+  ok('an already-corrupt side is refused, not merged over', broken.code === 1, broken.stderr);
+
+  const dup = runIndexDriver(idx('a'), idx('a', 'a'), idx('a'));
+  ok('duplicate ids are refused', dup.code === 1, dup.stderr);
+
+  const fresh = runIndexDriver(null, idx('a'), idx('b'));
+  ok('a missing base (file added on both sides) still merges', fresh.code === 0 && JSON.parse(fresh.out).length === 2, fresh.stderr);
+}
+
 console.log(`\n${fail === 0 ? 'ALL PASS' : 'FAILURES'} — ${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);

@@ -125,9 +125,19 @@ const GITATTRIBUTES = `# Memory stores merge semantically — see bin/memory-mer
 memory.jsonl merge=aim-memory
 memory-*.jsonl merge=aim-memory
 
-# Deep-context docs are write-once with unique ids, so they cannot truly conflict.
-deep/index.json merge=union
+# The deep-context index is one JSON array keyed by id. merge=union interleaves two
+# machines' additions into invalid JSON, so it gets its own id-keyed driver.
+deep/index.json merge=aim-index
 `;
+
+// Stores created before v1.11.0 carry `deep/index.json merge=union`. Rewrite just that
+// stanza; everything else in the file is left as the user has it.
+function upgradeGitattributes(text) {
+  return text.replace(
+    /(?:# Deep-context docs are write-once with unique ids, so they cannot truly conflict\.\n)?deep\/index\.json merge=union\n?/,
+    GITATTRIBUTES.slice(GITATTRIBUTES.indexOf('# The deep-context index'))
+  );
+}
 
 function repoReadme(displayName) {
   return `# ${displayName} — Claude memory
@@ -215,10 +225,23 @@ function git(repo, args, opts = {}) {
   return execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8', ...opts });
 }
 
-function registerMergeDriver(repo, driverPath) {
+const DRIVER_FILES = ['memory-merge-driver.mjs', 'deep-index-merge-driver.mjs'];
+
+// Copy the drivers somewhere that outlives this run. Registering them from __dirname
+// points git into the npx cache, which npx can prune or replace at any time — and a
+// driver that has vanished fails exactly like one that never ran.
+function installDrivers(destDir) {
+  fs.mkdirSync(destDir, { recursive: true });
+  for (const f of DRIVER_FILES) fs.copyFileSync(path.join(__dirname, f), path.join(destDir, f));
+  return destDir;
+}
+
+function registerMergeDrivers(repo, driverDir) {
+  // Single-quoted: git passes these to a shell, and the path can contain spaces.
   git(repo, ['config', 'merge.aim-memory.name', 'AIM knowledge graph semantic merge']);
-  // Single-quoted: git passes this to a shell, and the path can contain spaces.
-  git(repo, ['config', 'merge.aim-memory.driver', `node '${driverPath}' %O %A %B %P`]);
+  git(repo, ['config', 'merge.aim-memory.driver', `node '${path.join(driverDir, DRIVER_FILES[0])}' %O %A %B %P`]);
+  git(repo, ['config', 'merge.aim-index.name', 'Deep-context index merge by id']);
+  git(repo, ['config', 'merge.aim-index.driver', `node '${path.join(driverDir, DRIVER_FILES[1])}' %O %A %B %P`]);
 }
 
 // A DIRECTORY symlink, never a file symlink: a directory symlink survives any write
@@ -253,53 +276,98 @@ function createBridge(oldPath, newPath) {
 // Runs unattended, so it must never end in a state a person has to unpick. It stages,
 // commits, then pulls with rebase and autostash before pushing — the semantic merge
 // driver resolves overlapping edits during the rebase. On any failure it stops and
-// leaves a log rather than forcing anything.
+// leaves a log rather than forcing anything — and after repeated failures it says so on
+// screen, because a sync that fails quietly looks exactly like one that works.
+
+// Every directory holding a node binary when the installer runs, then the Homebrew
+// prefixes. dirname(process.execPath) alone was not enough: execPath has symlinks
+// resolved, so a node reached through ~/.local/bin baked in the symlink's target, which
+// moves whenever that install is upgraded. (Kam's MacBook Pro, 2026-09-12.)
+function nodeDirs() {
+  const dirs = [];
+  for (const d of (process.env.PATH || '').split(path.delimiter)) {
+    // npx prepends its own cache directories; never bake those in.
+    if (!d || d.includes('node_modules') || d.includes(`${path.sep}_npx`)) continue;
+    try { fs.accessSync(path.join(d, 'node'), fs.constants.X_OK); dirs.push(d); } catch { /* no node here */ }
+  }
+  dirs.push(path.dirname(process.execPath), '/opt/homebrew/bin', '/usr/local/bin');
+  return [...new Set(dirs)];
+}
 
 function syncScript(repo, logPath) {
-  const nodeDir = path.dirname(process.execPath);
+  const failures = path.join(path.dirname(logPath), 'sync.failures');
   return `#!/bin/sh
-# Claude memory background sync — installed by setup-claude-memory --git.
+# Claude memory background sync — installed by setup-claude-memory.
 # Safe to run at any time, including while Claude is writing.
 set -u
 
 # launchd runs this with a minimal PATH that excludes Homebrew and other non-system
-# node installs. The merge driver is invoked by git as a bare \`node ...\` command, so
-# without this, any real merge silently falls back to git's text merge and leaves
-# conflict markers in memory.jsonl instead of resolving automatically.
-export PATH=${JSON.stringify(nodeDir)}:/opt/homebrew/bin:/usr/local/bin:"$PATH"
+# node installs. The merge drivers are invoked by git as bare \`node ...\` commands, so
+# without this, any real merge silently falls back to git's text merge and aborts.
+export PATH=${nodeDirs().map(d => JSON.stringify(d)).join(':')}:"$PATH"
 
 REPO=${JSON.stringify(repo)}
 LOG=${JSON.stringify(logPath)}
+FAILURES=${JSON.stringify(failures)}
 
 log() { echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $*" >> "$LOG"; }
 
-cd "$REPO" 2>/dev/null || { log "FAIL repo missing"; exit 1; }
+count() { n=$(cat "$FAILURES" 2>/dev/null); case "$n" in ''|*[!0-9]*) n=0 ;; esac; echo "$n"; }
+
+notify() {
+  if [ -n "\${AIM_SYNC_NOTIFY:-}" ]; then "$AIM_SYNC_NOTIFY" "$1"; return; fi
+  osascript -e "display notification \\"$1\\" with title \\"Claude memory sync\\"" >/dev/null 2>&1 || true
+}
+
+# Until v1.11.0 a failing sync logged a line and tried again in 15 minutes, forever —
+# 330 times on one Mac before anyone noticed. Count consecutive failures and say so on
+# screen at the third, then every 24th (about six hours) until it recovers.
+fail() {
+  log "FAIL $*"
+  n=$(( $(count) + 1 ))
+  echo "$n" > "$FAILURES"
+  if [ "$n" -eq 3 ] || [ $(( n % 24 )) -eq 0 ]; then
+    notify "Memory has failed to sync $n times in a row. Details are in sync.log."
+    log "ALERT shown after $n consecutive failures"
+  fi
+  exit 1
+}
+
+cd "$REPO" 2>/dev/null || fail "repo missing: $REPO"
+
+# The merge drivers are node scripts. Say so up front rather than letting every real
+# merge fall back to git's text merge and abort.
+command -v node >/dev/null 2>&1 || fail "node not found on PATH ($PATH) — the merge drivers cannot run. Re-run: npx setup-claude-memory@latest"
 
 git add -A
 if ! git diff --cached --quiet; then
-  git commit -q -m "memory: $(date -u +%Y-%m-%dT%H:%MZ)" || { log "FAIL commit"; exit 1; }
+  git commit -q -m "memory: $(date -u +%Y-%m-%dT%H:%MZ)" || fail "commit"
 fi
 
 # --autostash so an in-flight write by a live session does not block the rebase.
 if ! git pull --rebase --autostash -q 2>>"$LOG"; then
-  # Name the files that actually conflicted. The merge driver only handles memory
-  # stores, so anything else landing here is a different problem — saying "the driver
-  # refused" when it did not is how a five-minute fix becomes an afternoon.
+  # Name the files that actually conflicted, and say which kind of problem it is.
   CONFLICTED=$(git diff --name-only --diff-filter=U 2>/dev/null | tr '\n' ' ')
-  if [ -n "$CONFLICTED" ]; then
-    log "FAIL rebase — unresolved conflict in: $CONFLICTED"
-    log "     (the memory stores merge automatically; a conflict here means some OTHER file diverged)"
-  else
-    log "FAIL pull/rebase — see the git output above."
-  fi
   git rebase --abort 2>/dev/null
-  exit 1
+  case " $CONFLICTED" in
+    " ") fail "pull/rebase — see the git output above." ;;
+    *" memory"*|*"deep/index.json"*)
+      fail "rebase — a merge driver did not resolve: $CONFLICTED(it refused a malformed file or did not run; see the lines above)" ;;
+    *) fail "rebase — a file that is not memory diverged: $CONFLICTED" ;;
+  esac
 fi
 
 if ! git push -q; then
-  log "FAIL push (offline or auth expired) — commits are safe locally, will retry next run."
-  exit 1
+  fail "push (offline or auth expired) — commits are safe locally, will retry next run."
 fi
+
+n=$(count)
+if [ "$n" -gt 0 ]; then
+  rm -f "$FAILURES"
+  log "OK syncing again after $n consecutive failure(s)"
+  [ "$n" -ge 3 ] && notify "Memory is syncing again."
+fi
+exit 0
 `;
 }
 
@@ -384,12 +452,14 @@ module.exports = {
   checkGitPrereqs,
   GITIGNORE,
   GITATTRIBUTES,
+  upgradeGitattributes,
   repoReadme,
   fileHashes,
   copyTree,
   verifyCopy,
   git,
-  registerMergeDriver,
+  installDrivers,
+  registerMergeDrivers,
   createBridge,
   which,
 };

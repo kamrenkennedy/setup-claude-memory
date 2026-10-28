@@ -4,9 +4,9 @@ _Spec for turning this package's two local memory servers into one hosted memory
 surface can pair with. Decision record: Deep Context `aligned-memory-product-decision-2026-10-27`.
 Earlier threat research: `remote-memory-access-research-2026-06-26`._
 
-**Status (2026-10-27):** step 1 built and tested locally (`worker/`, `bin/memory-export.mjs`).
-Not deployed: no Cloudflare resource, GitHub app or secret exists yet. Kam's picks, 2026-10-27:
-D1 mirror pushed from the Mac, software-projects allowlist, GitHub sign-in, free tier only.
+**Status (2026-10-28):** step 1 deployed and in use on the phone. Step 2 (writes + auto-refresh)
+built and tested, not yet deployed; see "Step 2" below. Kam's picks, 2026-10-27: D1 mirror pushed
+from the Mac, software-projects allowlist, GitHub sign-in, free tier only.
 
 ## What it is
 
@@ -22,7 +22,7 @@ Each phase ships on its own and stacks on the one before. Nothing later is built
 | # | Phase | What it adds | Gate to start it |
 |---|---|---|---|
 | 1 | **Read-only, work scope, Kam alone** | Remote MCP, OAuth sign-in, search/get tools only, a work-only slice of the store, rate limits, audit log | Kam's picks below |
-| 2 | Writes + reconcile | `add_facts` / `deep_store` from the cloud; the server's writes reconcile with Mac writes through the existing semantic merge driver (`bin/memory-merge-driver.mjs`, `bin/deep-index-merge-driver.mjs`) | Step 1 in daily use for two weeks with a clean audit log |
+| 2 | Writes + reconcile | `add_facts` / `deep_store` from the cloud, drained into the Mac's store by the background sync; change-only refresh of the cloud copy | Was: two weeks of clean daily use. Kam started it on day one (2026-10-28), audit log clean (7 tool calls, no refusals) |
 | 3 | Scopes + Tiera | `personal` / `family` / `work` as real server-side scopes; Tiera as user two with her own `tiera` store; family scope readable by both | Writes proven; a permission model for shared scopes |
 | 4 | Persona + Boardroom pairing | Both apps sign in with the same Aligned login and read/write through the same server | Phase 3 |
 | 5 | Team permissions + memory steward | Dropbox-style per-member access for team scope; the steward (built from the unreleased v1.8.0 write-path feedback + `bin/memory-compact.js`) proposes prunes and merges, the owner approves | Phase 4; a first outside team user |
@@ -302,9 +302,86 @@ npx wrangler d1 execute aligned-memory --remote --command "SELECT ts, method, to
 The log opens each connection with a `server/discover` row marked `http_400`. That is Claude
 trying a newer handshake first, then falling back to `initialize`. It is expected.
 
-**Refreshing:** repeat step 5 whenever the cloud copy should catch up. Hooking it into the
-background sync is a follow-up.
+**Refreshing:** automatic once step 2 is set up (below). Before that, repeat step 5.
 
 **Shutting it off:** `npx wrangler secret delete ALLOWED_GITHUB_ID`. It takes effect at once, and
 every MCP call is refused from then on, because the handler checks it on each request. Removing the connector in
 Claude only disconnects that one client.
+
+## Step 2 — writes and auto-refresh
+
+### How it works
+
+The GitHub memory repo stays the only source of truth. The cloud copy follows it, and a write made
+in the cloud is a request the Mac carries out.
+
+```
+phone ──aim_memory_add_facts / aim_deep_store──▶ Worker
+                                                   │ one D1 transaction:
+                                                   ├─▶ live tables   (the next read sees it)
+                                                   └─▶ pending       (waits for a Mac)
+
+Mac background sync, every 15 min (sync.sh):
+  1. aligned intake    pending ─▶ local MCP servers ─▶ ~/Developer/claude-memory
+  2. git commit, pull --rebase, push               (every Mac's writes meet here)
+  3. aligned refresh   export ─▶ diff against the manifest + what D1 holds ─▶ upload changes
+```
+
+- **Writes only add.** Facts go onto entities already in the scope. Docs need a new id in a
+  scope project. There is no tool to delete, edit, overwrite or create an entity, so a stolen
+  token can add noise but cannot erase memory. Limits: 2,000 chars a fact, 20 facts a call,
+  200,000 chars a doc, 200 writes a day.
+- **A new permission.** Writes need `mcp:write`. Tokens from before step 2 carry only `mcp:read`,
+  so those clients stay read-only until reconnected. The consent page says what changed.
+- **Intake goes through the memory servers.** `bin/aligned-sync.mjs` starts the same
+  `aim-memory-server` and `aim-deep-context-server` Claude uses, over stdio, and calls the same
+  tools. It never edits the store's files. A write the server refuses (the entity was renamed on
+  the Mac, say) is marked `failed` with its reason and shown on screen once.
+- **Refresh uploads only what changed.** A full upload writes about 32,000 D1 rows, and the free
+  plan allows 100,000 a day. `diffSql` in `bin/memory-export.mjs` compares the new export with the
+  manifest from the last upload and with what D1 holds now. It appends new facts, rewrites a doc
+  or an entity only when it changed, and leaves alone anything with a write still waiting for
+  intake. A fact blocked by `deny_patterns` still reaches the store, where it belongs, and is then
+  removed from the cloud. Tested: after phone writes, Mac edits, a refused write and a blocked fact,
+  the cloud is identical to a fresh full export (`test/aligned-sync.test.mjs`).
+- **It fails loudly.** It keeps its own failure count (`~/.aligned-memory/aligned.failures`) and
+  shows a notification at the third failure in a row, like sync.sh. It never stops the git sync.
+
+### Setup (on one Mac)
+
+1. **A Cloudflare API token that can only touch D1.** Cloudflare dashboard → My Profile → API
+   Tokens → Create Token → Custom token. Permissions: Account → D1 → Edit. Account resources: your
+   account only. Copy the token.
+2. **Put it in the login keychain** (it prompts for the token; it never lands in a file):
+
+   ```bash
+   security add-generic-password -a "$USER" -s aligned-memory-d1 -w
+   ```
+
+3. **Config**, `~/.aligned-memory/config.json` (ids are not secrets):
+
+   ```json
+   { "memory_path": "~/Developer/claude-memory",
+     "scope_file": "~/.aligned-memory/scopes/work.json",
+     "account_id": "<from: npx wrangler whoami>",
+     "database_id": "<D1 id in worker/wrangler.jsonc>" }
+   ```
+
+4. **One full upload with a manifest**, so change-only uploads have a baseline (step 5 above plus
+   `--manifest`):
+
+   ```bash
+   node ../bin/memory-export.mjs --memory-path ~/Developer/claude-memory --scope ~/.aligned-memory/scopes/work.json --out ~/.aligned-memory/work-snapshot.sql --manifest ~/.aligned-memory/work-manifest.json
+   npx wrangler d1 execute aligned-memory --remote --file ~/.aligned-memory/work-snapshot.sql
+   ```
+
+5. **Deploy the Worker** (`npx wrangler deploy`), then in Claude Disconnect and Connect the
+   connector so it gets `mcp:write` and the two new tools.
+6. **Refresh the background sync** so sync.sh calls aligned-sync:
+   `npx setup-claude-memory@latest` (no flags) once the release is published.
+7. **Check it.** Add a fact from the phone, wait one sync, then look for it in `memory.jsonl` and
+   in `sync.log` (`aligned: took in 1 write(s)`).
+
+A refresh refuses to run when D1's snapshot is not the one this Mac last uploaded, and says to
+redo step 4. Two Macs refreshing the same database would trip this, so only one Mac should hold
+`~/.aligned-memory/config.json` with refresh rights for now.

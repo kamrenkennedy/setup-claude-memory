@@ -67,6 +67,8 @@ function buildFixture() {
     doc('personal-doc', 'Personal Self-Discovery', 'PERSONAL-DOC body'),
     doc('family-doc', 'Kennedy Family Docs', 'FAMILY-DOC body'),
     doc('boardroom-secret', 'Boardroom', 'mentions the staging invite code'),
+    doc('boardroom-tagged', 'Boardroom', 'clean body', { tags: ['invite code'] }),
+    doc('boardroom-client', 'Boardroom', 'clean body', { client: 'invite code client' }),
     doc('../escape', 'Boardroom', 'path trick'),
   ]));
   return dir;
@@ -110,7 +112,9 @@ ok('redactions counted', report.redactions?.['GitHub token'] === 1 && report.red
 
 console.log('\n=== 4. deny_patterns drop whole observations and docs ===');
 ok('observation dropped', !sql.includes('ABC123') && report.dropped_by_deny_patterns?.observations === 1);
-ok('doc dropped', !sql.includes('boardroom-secret') && report.dropped_by_deny_patterns?.docs === 1);
+ok('doc dropped', !sql.includes('boardroom-secret'));
+ok('a match in tags or client drops the doc too', !sql.includes('boardroom-tagged') && !sql.includes('boardroom-client'));
+ok('dropped docs counted', report.dropped_by_deny_patterns?.docs === 3);
 
 console.log('\n=== 5. The snapshot loads into SQLite, and reads back correctly ===');
 let sqlite;

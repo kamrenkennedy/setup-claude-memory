@@ -176,12 +176,13 @@ export function buildSnapshot(store, scope) {
     const file = path.join(deepDir, `${entry.id}.md`);
     if (!fs.existsSync(file)) continue;
     const content = splitFrontmatter(readSource(store, file));
-    if (denied(content) || denied(entry.summary || '')) { dropped.docs++; continue; }
+    const tags = Array.isArray(entry.tags) ? entry.tags : [];
+    if ([content, entry.summary || '', entry.client || '', ...tags].some(denied)) { dropped.docs++; continue; }
     const meta = {
       id: entry.id,
       project: entry.project,
       ...(entry.client && { client: entry.client }),
-      tags: (Array.isArray(entry.tags) ? entry.tags : []).map(redact),
+      tags: tags.map(redact),
       type: entry.type,
       date: entry.date,
       summary: redact(entry.summary || ''),

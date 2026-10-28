@@ -231,24 +231,27 @@ npx wrangler kv namespace create OAUTH_KV
 
 Paste the two ids it prints into `wrangler.jsonc` (`database_id`, and the KV `id`).
 
-**2. First deploy, closed.** `ALLOWED_GITHUB_ID` is empty, so nobody can sign in yet.
+**2. First deploy, closed.** `wrangler.jsonc` carries no settings (the repo is public), so the
+Worker answers 503 until step 4 and nobody can sign in until step 6.
 
 ```bash
 npx wrangler deploy
 ```
 
 Note the URL it prints, `https://aligned-memory.<subdomain>.workers.dev`. The free plan accepts
-the `ratelimits` binding (confirmed on the first real deploy, 2026-10-27). Until step 4 sets
-`PUBLIC_ORIGIN`, `/mcp` answers 404 and `/authorize` answers 400. That is expected.
+the `ratelimits` binding (confirmed on the first real deploy, 2026-10-27).
 
 **3. GitHub OAuth App** at github.com → Settings → Developer settings → OAuth Apps → New OAuth App:
-Homepage URL = the Worker URL, Authorization callback URL = `<Worker URL>/callback`. Copy the
-client id, then generate a client secret.
+Homepage URL = the Worker URL, Redirect URI (older forms call it Authorization callback URL) =
+`<Worker URL>/callback`. Leave wildcard matching and Device Flow off. Copy the client id, then
+generate a client secret.
 
-**4. Fill in the config.** In `wrangler.jsonc` set `PUBLIC_ORIGIN` to the Worker URL,
-`GITHUB_CLIENT_ID`, and `ALLOWED_GITHUB_ID` to the number from `gh api user --jq .id`. Then:
+**4. Settings, as secrets.** Each `secret put` prompts for the value and takes effect at once, no
+redeploy. They live on Cloudflare, never in the repo.
 
 ```bash
+npx wrangler secret put PUBLIC_ORIGIN          # the Worker URL, no trailing slash
+npx wrangler secret put GITHUB_CLIENT_ID
 npx wrangler secret put GITHUB_CLIENT_SECRET
 ```
 
@@ -264,10 +267,10 @@ Read the counts. Then:
 npx wrangler d1 execute aligned-memory --remote --file ~/.aligned-memory/work-snapshot.sql
 ```
 
-**6. Deploy open.**
+**6. Open it to one account.** This is the step that lets anyone in, so it goes last.
 
 ```bash
-npx wrangler deploy
+npx wrangler secret put ALLOWED_GITHUB_ID      # the number from: gh api user --jq .id
 ```
 
 **7. Add it to Claude.**
@@ -289,6 +292,6 @@ npx wrangler d1 execute aligned-memory --remote --command "SELECT ts, method, to
 **Refreshing:** repeat step 5 whenever the cloud copy should catch up. Hooking it into the
 background sync is a follow-up.
 
-**Shutting it off:** set `ALLOWED_GITHUB_ID` to `""` and `npx wrangler deploy`. Every MCP call is
-refused from that moment, because the handler checks it on each request. Removing the connector in
+**Shutting it off:** `npx wrangler secret delete ALLOWED_GITHUB_ID`. It takes effect at once, and
+every MCP call is refused from then on, because the handler checks it on each request. Removing the connector in
 Claude only disconnects that one client.

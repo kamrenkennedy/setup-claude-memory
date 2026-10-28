@@ -261,6 +261,7 @@ async function signIn(request, env, ctx, { authorizationServer, origin }, path) 
 
 export default {
   async fetch(request, env, ctx) {
+    if (!env.PUBLIC_ORIGIN) return new Response('Aligned Memory is not configured yet.\n', { status: 503 });
     const s = servers(env);
     const path = new URL(request.url).pathname;
     if (path === '/authorize' || path === '/callback') return signIn(request, env, ctx, s, path);

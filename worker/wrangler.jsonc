@@ -1,0 +1,29 @@
+// Aligned Memory — remote MCP server, step 1 (read-only, work scope, one owner).
+// Spec: ../docs/ALIGNED-MEMORY.md. Nothing here is deployed until Kam runs the steps
+// in that spec.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "aligned-memory",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-15",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "triggers": { "crons": ["17 4 * * *"] },
+  // No vars here: the repo is public. Set per deployment with `npx wrangler secret put`:
+  //   PUBLIC_ORIGIN         the Worker's public origin, e.g. https://aligned-memory.<sub>.workers.dev
+  //   GITHUB_CLIENT_ID      from the GitHub OAuth App
+  //   GITHUB_CLIENT_SECRET  from the GitHub OAuth App
+  //   ALLOWED_GITHUB_ID     the only GitHub account that may sign in (numeric id, not the login)
+  // Until PUBLIC_ORIGIN is set the Worker answers 503; without ALLOWED_GITHUB_ID nobody gets in.
+  "d1_databases": [
+    { "binding": "DB", "database_name": "aligned-memory", "database_id": "8cea9884-f569-45a5-9d2c-6be21fa6b32b" }
+  ],
+  "kv_namespaces": [
+    { "binding": "OAUTH_KV", "id": "a1c9e7726cf94d6ba589ea3d89a5b9de" }
+  ],
+  "ratelimits": [
+    { "name": "MCP_LIMITER", "namespace_id": "4101", "simple": { "limit": 60, "period": 60 } },
+    { "name": "SIGNIN_LIMITER", "namespace_id": "4102", "simple": { "limit": 10, "period": 60 } }
+  ]
+}

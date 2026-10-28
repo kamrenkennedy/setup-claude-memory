@@ -1,0 +1,23 @@
+{
+  "scope": "work",
+  "owner": "Alex",
+  "topics": [
+    "My Product",
+    "my-product-api"
+  ],
+  "entities": [
+    "My_Product",
+    "My_Product_Archive"
+  ],
+  "deep_projects": [
+    "My Product",
+    "my-product-api"
+  ],
+  "deny_patterns": [
+    "invite code",
+    "password",
+    "recovery code",
+    "insurance",
+    "\\bmedical\\b"
+  ]
+}

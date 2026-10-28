@@ -237,9 +237,9 @@ Paste the two ids it prints into `wrangler.jsonc` (`database_id`, and the KV `id
 npx wrangler deploy
 ```
 
-Note the URL it prints, `https://aligned-memory.<subdomain>.workers.dev`. If the deploy refuses
-the `ratelimits` binding on the free plan, stop there and say so: the docs do not state whether
-the free plan includes it.
+Note the URL it prints, `https://aligned-memory.<subdomain>.workers.dev`. The free plan accepts
+the `ratelimits` binding (confirmed on the first real deploy, 2026-10-27). Until step 4 sets
+`PUBLIC_ORIGIN`, `/mcp` answers 404 and `/authorize` answers 400. That is expected.
 
 **3. GitHub OAuth App** at github.com → Settings → Developer settings → OAuth Apps → New OAuth App:
 Homepage URL = the Worker URL, Authorization callback URL = `<Worker URL>/callback`. Copy the

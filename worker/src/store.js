@@ -198,3 +198,108 @@ export async function getDoc(db, input = {}) {
     ...(end < content.length && { next_offset: end, note: `Document continues. Call again with offset: ${end}.` }),
   };
 }
+
+// ─── Writes ──────────────────────────────────────────────────────────────────
+//
+// A write lands twice in one transaction: in the live tables, so the next read sees it,
+// and in `pending`, which the Mac drains into the real store (bin/aligned-sync.mjs).
+// Writes only add. They cannot touch an entity outside the scope, overwrite a doc, or
+// delete anything, so a stolen token can add noise but cannot erase memory.
+
+export const LIMITS = { factChars: 2000, factsPerCall: 20, docChars: 200000, summaryChars: 1000, writesPerDay: 200 };
+const DOC_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const DOC_TYPES = ['session-summary', 'creative-brief', 'research', 'decision-log', 'project-narrative'];
+const CHUNK_CHARS = 12000;
+
+async function underDailyCap(db, adding) {
+  const today = new Date().toISOString().slice(0, 10);
+  const row = await db.prepare('SELECT count(*) AS n FROM pending WHERE ts >= ?1').bind(today).first();
+  if (row.n + adding > LIMITS.writesPerDay) {
+    throw new Error(`Daily write limit reached (${LIMITS.writesPerDay}). Writes reopen at 00:00 UTC.`);
+  }
+}
+
+export async function addFacts(db, observations, userId) {
+  if (!Array.isArray(observations) || !observations.length) throw new Error('observations is required');
+  const items = observations.map(o => ({
+    name: String(o?.entityName ?? ''),
+    contents: (Array.isArray(o?.contents) ? o.contents : []).map(String),
+  }));
+  const all = items.flatMap(i => i.contents);
+  if (all.length > LIMITS.factsPerCall) throw new Error(`At most ${LIMITS.factsPerCall} observations per call.`);
+  if (all.some(c => !c.trim() || c.length > LIMITS.factChars)) {
+    throw new Error(`Each observation must be non-empty and at most ${LIMITS.factChars} characters.`);
+  }
+  await underDailyCap(db, items.length);
+
+  const names = [...new Set(items.map(i => i.name))];
+  const [ents, dupes] = await db.batch([
+    db.prepare(`SELECT name, obs_count FROM entities WHERE snap = ${SNAP} AND name IN (SELECT value FROM json_each(?1))`).bind(JSON.stringify(names)),
+    db.prepare(`SELECT entity, text FROM observations WHERE snap = ${SNAP} AND entity IN (SELECT value FROM json_each(?1))
+                AND text IN (SELECT value FROM json_each(?2))`).bind(JSON.stringify(names), JSON.stringify(all)),
+  ]);
+  const count = new Map(ents.results.map(e => [e.name, e.obs_count]));
+  const missing = names.filter(n => !count.has(n));
+  if (missing.length) throw new Error(`Entity with name ${missing[0]} not found in this memory's work scope.`);
+  const seen = new Map(names.map(n => [n, new Set()]));
+  for (const d of dupes.results) seen.get(d.entity).add(d.text);
+
+  const ts = new Date().toISOString();
+  const stmts = [];
+  const results = items.map(({ name, contents }) => {
+    const added = contents.filter(c => !seen.get(name).has(c) && seen.get(name).add(c));
+    for (const text of added) {
+      const idx = count.get(name);
+      count.set(name, idx + 1);
+      stmts.push(db.prepare(`INSERT INTO observations (snap, entity, idx, text) VALUES (${SNAP}, ?1, ?2, ?3)`).bind(name, idx, text));
+    }
+    if (added.length) {
+      stmts.push(db.prepare("INSERT INTO pending (ts, user_id, tool, target, payload) VALUES (?1, ?2, 'aim_memory_add_facts', ?3, ?4)")
+        .bind(ts, userId ?? null, name, JSON.stringify({ entityName: name, contents: added })));
+    }
+    return { entityName: name, addedObservations: added };
+  });
+  for (const name of names) {
+    stmts.push(db.prepare(`UPDATE entities SET obs_count = ?1 WHERE snap = ${SNAP} AND name = ?2`).bind(count.get(name), name));
+  }
+  if (results.some(r => r.addedObservations.length)) await db.batch(stmts);
+  return results;
+}
+
+export async function storeDoc(db, input = {}, userId) {
+  for (const f of ['id', 'project', 'tags', 'type', 'date', 'summary', 'content']) {
+    if (!input[f]) throw new Error(`Missing required field: ${f}`);
+  }
+  const { id, project, client, tags, type, date, summary, content } = input;
+  if (!DOC_ID.test(String(id))) throw new Error('id must be kebab-case letters, numbers, dots, dashes or underscores.');
+  if (!DOC_TYPES.includes(type)) throw new Error(`type must be one of: ${DOC_TYPES.join(', ')}`);
+  if (!Array.isArray(tags) || tags.some(t => typeof t !== 'string')) throw new Error('tags must be an array of strings');
+  if (String(summary).length > LIMITS.summaryChars) throw new Error(`summary is limited to ${LIMITS.summaryChars} characters.`);
+  if (String(content).length > LIMITS.docChars) throw new Error(`content is limited to ${LIMITS.docChars} characters.`);
+
+  const [writable, existing] = await db.batch([
+    db.prepare("SELECT value FROM meta WHERE key = 'writable'"),
+    db.prepare(`SELECT 1 FROM docs WHERE snap = ${SNAP} AND id = ?1`).bind(String(id)),
+  ]);
+  let projects = [];
+  try { projects = JSON.parse(writable.results[0]?.value || '{}').deep_projects || []; } catch { /* none */ }
+  if (!projects.includes(project)) {
+    throw new Error(`"${project}" is not a project in this memory's work scope. Use one of: ${projects.join(', ')}`);
+  }
+  if (existing.results.length) throw new Error(`A document with id "${id}" already exists. Writes here only add; pick a new id.`);
+  await underDailyCap(db, 1);
+
+  const meta = { id: String(id), project, ...(client && { client: String(client) }), tags, type, date: String(date), summary: String(summary) };
+  const text = String(content);
+  const parts = [];
+  for (let i = 0; i < text.length; i += CHUNK_CHARS) parts.push(text.slice(i, i + CHUNK_CHARS));
+  await db.batch([
+    db.prepare(`INSERT INTO docs (snap, ord, id, project, client, type, date, summary, tags, meta, chunks)
+                VALUES (${SNAP}, (SELECT coalesce(max(ord), -1) + 1 FROM docs WHERE snap = ${SNAP}), ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`)
+      .bind(meta.id, project, meta.client ?? null, type, meta.date, meta.summary, JSON.stringify(tags), JSON.stringify(meta), parts.length),
+    ...parts.map((p, seq) => db.prepare(`INSERT INTO doc_chunks (snap, id, seq, text) VALUES (${SNAP}, ?1, ?2, ?3)`).bind(meta.id, seq, p)),
+    db.prepare("INSERT INTO pending (ts, user_id, tool, target, payload) VALUES (?1, ?2, 'aim_deep_store', ?3, ?4)")
+      .bind(new Date().toISOString(), userId ?? null, meta.id, JSON.stringify({ ...meta, content: text })),
+  ]);
+  return { success: true, id: meta.id, note: 'Saved. It reaches your Macs on their next memory sync (about 15 minutes).' };
+}

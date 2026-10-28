@@ -10,6 +10,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import https from 'https';
 import { execFile, execFileSync } from 'child_process';
 import { createRequire } from 'module';
@@ -32,7 +33,7 @@ const INDEX_PATH  = path.join(DEEP_PATH, 'index.json');
 const CONFIG_PATH = path.join(MEMORY_PATH, 'config.json');
 const KG_PATH     = path.join(MEMORY_PATH, 'memory.jsonl');
 
-const APPLE_EMBED_SRC    = path.join(path.dirname(new URL(import.meta.url).pathname), 'apple-embed.swift');
+const APPLE_EMBED_SRC    = path.join(path.dirname(fileURLToPath(import.meta.url)), 'apple-embed.swift');
 const APPLE_EMBED_CACHE  = path.join(process.env.HOME || '/tmp', '.cache', 'aim');
 const APPLE_EMBED_BIN    = path.join(APPLE_EMBED_CACHE, 'apple-embed');
 

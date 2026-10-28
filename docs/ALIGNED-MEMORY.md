@@ -162,6 +162,7 @@ moves to a shared module so the local and remote servers return identical shapes
 
 | Threat | Control |
 |---|---|
+| A phishing link to a real consent page for a rogue client | Tokens can only be delivered to Claude's callback (`https://claude.ai/api/mcp/auth_callback`) or a loopback port (Claude Code); any other redirect gets no consent page and is logged. `EXTRA_REDIRECT_URIS` adds ChatGPT later |
 | Token leak or endpoint compromise | OAuth with short-lived, rotating tokens; worst case reads the work slice only |
 | Family or personal data exposed | Absent from Cloudflare (Choice 2); no credential reaches the full repo (Choice 1) |
 | Destructive writes from the cloud | No write tools exist (Choice 4) |
@@ -195,7 +196,7 @@ Same style as `test/memory-server.test.mjs`: a real MCP client against a real se
   contact details are redacted, `deny_patterns` drop entries, the snapshot loads into SQLite,
   every statement fits D1's 100 KB limit, and a re-export swaps snapshots without touching the
   audit log.
-- `test/worker.test.mjs` (51): the Worker under `wrangler dev` with local D1 and a fake GitHub.
+- `test/worker.test.mjs` (53): the Worker under `wrangler dev` with local D1 and a fake GitHub.
   401 with `resource_metadata`, discovery, DCR, CIMD advertised, PKCE, consent page, GitHub
   round trip, token exchange; a different GitHub account refused; only the five read tools; output
   **byte-identical to the local stdio server** on the same store; family data unreachable; deep

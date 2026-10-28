@@ -45,6 +45,18 @@ function servers(env) {
   return built;
 }
 
+// Where a token may be sent. Any app can register itself, so without this a phishing link
+// could show the owner a real consent page for a client that delivers to someone else.
+// Claude's hosted apps use one callback; Claude Code uses a loopback port.
+const CLAUDE_CALLBACK = 'https://claude.ai/api/mcp/auth_callback';
+function redirectAllowed(uri, env) {
+  let url;
+  try { url = new URL(uri); } catch { return false; }
+  if (uri === CLAUDE_CALLBACK) return true;
+  if (url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) return true;
+  return (env.EXTRA_REDIRECT_URIS || '').split(/\s+/).filter(Boolean).includes(uri);
+}
+
 const GITHUB_OAUTH = env => env.GITHUB_OAUTH_BASE || 'https://github.com';
 const GITHUB_API = env => env.GITHUB_API_BASE || 'https://api.github.com';
 
@@ -148,6 +160,10 @@ async function s256(verifier) {
 async function authorize(request, env, ctx, oauth, origin) {
   if (request.method === 'GET') {
     const authRequest = await oauth.parseAuthRequest(request);
+    if (!redirectAllowed(authRequest.redirectUri, env)) {
+      writeAudit(env, ctx, request, { method: 'sign_in', outcome: 'redirect_refused', client_id: authRequest.clientId, args: { redirect: authRequest.redirectUri } });
+      return page('Aligned Memory', '<h1>This app cannot connect</h1><p>It wants access sent somewhere other than Claude.</p>', new Headers(), 400);
+    }
     const details = await oauth.describeConsent(authRequest);
     const consent = await oauth.beginConsent(authRequest);
     return page('Aligned Memory', consentPage(details, consent.handle), consent.headers);

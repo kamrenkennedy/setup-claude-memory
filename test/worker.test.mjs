@@ -208,6 +208,16 @@ ok('a refresh token is issued', !!tokens.refresh_token);
 ok('token carries mcp:read only', tokens.scope === 'mcp:read', tokens.scope);
 
 console.log('\n=== 3. Anyone else is refused at sign-in ===');
+const evil = await (await fetch(asMeta.registration_endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ client_name: 'Claude', redirect_uris: ['https://evil.example/cb'], token_endpoint_auth_method: 'none',
+    grant_types: ['authorization_code'], response_types: ['code'] }) })).json();
+const evilAuth = new URL(asMeta.authorization_endpoint);
+Object.entries({ response_type: 'code', client_id: evil.client_id, redirect_uri: 'https://evil.example/cb', scope: 'mcp:read',
+  state: 's', code_challenge: b64url(crypto.randomBytes(32)), code_challenge_method: 'S256' }).forEach(([k, v]) => evilAuth.searchParams.set(k, v));
+const evilPage = await fetch(evilAuth, { redirect: 'manual' });
+const evilHtml = await evilPage.text();
+ok('a client that sends tokens anywhere but Claude gets no consent page', evilPage.status === 400 && !evilHtml.includes('name="handle"'));
+
 githubUserId = '999';
 const stranger = await signIn();
 ok('a different GitHub account gets access_denied', stranger.toClient.searchParams.get('error') === 'access_denied', stranger.toClient);
@@ -278,6 +288,7 @@ await new Promise(r => setTimeout(r, 500));
 const rows = d1('SELECT method, tool, outcome, user_id FROM audit_log ORDER BY id');
 ok('tool calls logged with the owner', rows.some(r => r.tool === 'aim_memory_search' && r.user_id === `github-${OWNER_ID}` && r.outcome === 'ok'));
 ok('the refused sign-in is logged', rows.some(r => r.method === 'sign_in' && r.outcome === 'forbidden_user' && r.user_id === 'github-999'));
+ok('the refused redirect is logged', rows.some(r => r.method === 'sign_in' && r.outcome === 'redirect_refused'));
 ok('tool errors are logged as such', rows.some(r => r.tool === 'aim_memory_add_facts' && r.outcome === 'tool_error'));
 ok('tokens are never logged', !JSON.stringify(d1('SELECT * FROM audit_log')).includes(tokens.access_token));
 

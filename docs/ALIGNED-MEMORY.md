@@ -289,6 +289,9 @@ npx wrangler secret put ALLOWED_GITHUB_ID      # the number from: gh api user --
 npx wrangler d1 execute aligned-memory --remote --command "SELECT ts, method, tool, outcome, country FROM audit_log ORDER BY id DESC LIMIT 20"
 ```
 
+The log opens each connection with a `server/discover` row marked `http_400`. That is Claude
+trying a newer handshake first, then falling back to `initialize`. It is expected.
+
 **Refreshing:** repeat step 5 whenever the cloud copy should catch up. Hooking it into the
 background sync is a follow-up.
 

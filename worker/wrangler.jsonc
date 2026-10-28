@@ -19,10 +19,10 @@
     // GITHUB_CLIENT_SECRET is a secret: `npx wrangler secret put GITHUB_CLIENT_SECRET`.
   },
   "d1_databases": [
-    { "binding": "DB", "database_name": "aligned-memory", "database_id": "00000000-0000-0000-0000-000000000000" }
+    { "binding": "DB", "database_name": "aligned-memory", "database_id": "8cea9884-f569-45a5-9d2c-6be21fa6b32b" }
   ],
   "kv_namespaces": [
-    { "binding": "OAUTH_KV", "id": "00000000000000000000000000000000" }
+    { "binding": "OAUTH_KV", "id": "a1c9e7726cf94d6ba589ea3d89a5b9de" }
   ],
   "ratelimits": [
     { "name": "MCP_LIMITER", "namespace_id": "4101", "simple": { "limit": 60, "period": 60 } },

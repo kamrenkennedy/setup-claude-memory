@@ -280,6 +280,11 @@ aborts the sync rather than corrupting anything (verified).
 
 ## Current state (update at end of each session)
 
+- **Aligned Memory step 1 (2026-10-27):** built and tested on branch `aligned-memory-remote-mcp`,
+  draft PR #8, NOT deployed. Read-only remote MCP Worker in `worker/`, exporter
+  `bin/memory-export.mjs`, shared read core `lib/read-core.mjs`. Spec + deploy runbook:
+  `docs/ALIGNED-MEMORY.md`. Kam's real scope file is `~/.aligned-memory/scopes/work.json` (outside
+  the repo on purpose). The exporter is not in package.json `bin`/`files` yet.
 - **Local + GitHub:** v1.11.0, main `4113881`, tagged `v1.11.0`. **npm latest:** v1.11.0 (shasum
   `474226b4…`). Parity confirmed 2026-09-12, and the published artifact was verified by a fresh npm
   install + handshake. Tags v1.10.0/v1.10.1 were added retroactively the same day.

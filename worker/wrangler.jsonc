@@ -9,6 +9,7 @@
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "workers_dev": true,
   "observability": { "enabled": true },
+  "triggers": { "crons": ["17 4 * * *"] },
   "vars": {
     // The Worker's public origin. Set to the workers.dev URL at deploy.
     "PUBLIC_ORIGIN": "http://localhost:8787",

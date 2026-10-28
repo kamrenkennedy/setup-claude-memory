@@ -254,4 +254,9 @@ export default {
     if (path === '/') return new Response('Aligned Memory. Add this server in Claude with the /mcp URL.\n');
     return s.authorizationServer.fetch(request, env, ctx);
   },
+
+  // Daily: the audit log keeps 90 days. OAuth records expire on their own KV TTLs.
+  async scheduled(event, env) {
+    await env.DB.prepare("DELETE FROM audit_log WHERE ts < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 days')").run();
+  },
 };

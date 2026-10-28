@@ -119,7 +119,7 @@ const vars = {
   GITHUB_OAUTH_BASE: `http://127.0.0.1:${githubPort}`, GITHUB_API_BASE: `http://127.0.0.1:${githubPort}`,
 };
 const dev = spawn(WRANGLER, ['dev', '--ip', '127.0.0.1', '--port', String(port), '--persist-to', persist,
-  '--show-interactive-dev-session=false', '--log-level', 'warn',
+  '--show-interactive-dev-session=false', '--log-level', 'warn', '--test-scheduled',
   ...Object.entries(vars).flatMap(([k, v]) => ['--var', `${k}:${v}`])],
   { cwd: WORKER, env: { ...process.env, WRANGLER_SEND_METRICS: 'false' }, stdio: ['ignore', 'pipe', 'pipe'] });
 let devLog = '';
@@ -281,7 +281,13 @@ ok('the refused sign-in is logged', rows.some(r => r.method === 'sign_in' && r.o
 ok('tool errors are logged as such', rows.some(r => r.tool === 'aim_memory_add_facts' && r.outcome === 'tool_error'));
 ok('tokens are never logged', !JSON.stringify(d1('SELECT * FROM audit_log')).includes(tokens.access_token));
 
-console.log('\n=== 9. Sign-in is rate limited ===');
+console.log('\n=== 9. The audit log keeps 90 days ===');
+d1("INSERT INTO audit_log (ts, outcome) VALUES ('2020-01-01T00:00:00.000Z', 'ancient')");
+await fetch(`${ORIGIN}/__scheduled?cron=17+4+*+*+*`);
+const after = d1('SELECT outcome FROM audit_log');
+ok('rows older than 90 days are swept, recent ones kept', !after.some(r => r.outcome === 'ancient') && after.some(r => r.outcome === 'ok'));
+
+console.log('\n=== 10. Sign-in is rate limited ===');
 let limited = false;
 for (let i = 0; i < 15 && !limited; i++) limited = (await fetch(`${ORIGIN}/authorize`)).status === 429;
 ok('too many sign-in attempts get 429', limited);

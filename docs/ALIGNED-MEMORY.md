@@ -27,6 +27,19 @@ Each phase ships on its own and stacks on the one before. Nothing later is built
 | 4 | Persona + Boardroom pairing | Both apps sign in with the same Aligned login and read/write through the same server | Phase 3 |
 | 5 | Team permissions + memory steward | Dropbox-style per-member access for team scope; the steward (built from the unreleased v1.8.0 write-path feedback + `bin/memory-compact.js`) proposes prunes and merges, the owner approves | Phase 4; a first outside team user |
 
+### Shared spaces and invites (Kam, 2026-10-27)
+
+Family and team are the same feature on the same infrastructure: a **shared space**. A space has
+an owner, members who join by invite, and a role per member (read, or read and write). A family
+space is a small space with everyone trusted. A team space adds finer permissions later, such as
+which projects a member may see. Inviting works the same way in both: the owner sends an invite,
+the person signs in, accepts, and the space appears in their Claude next to their own memory.
+Personal memory is the one space nobody else can join.
+
+This shapes phases 3 and 5 rather than adding one: phase 3 builds spaces, invites and roles with
+the family space as the first real one (Kam and Tiera), and phase 5 adds team permissions on top.
+Step 1 already keys every row by snapshot and every token by user, so neither needs a rewrite.
+
 ## Step 1 — design
 
 ### Shape

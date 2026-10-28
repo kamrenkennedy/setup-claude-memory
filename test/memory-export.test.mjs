@@ -116,6 +116,18 @@ ok('doc dropped', !sql.includes('boardroom-secret'));
 ok('a match in tags or client drops the doc too', !sql.includes('boardroom-tagged') && !sql.includes('boardroom-client'));
 ok('dropped docs counted', report.dropped_by_deny_patterns?.docs === 3);
 
+console.log('\n=== 4b. The profile describes this user\'s scope, from their own data ===');
+ok('topics derived from docs then entities, folded', JSON.stringify(report.described_as?.topics) === JSON.stringify(['Boardroom', 'Persona', 'persona-cloud']), JSON.stringify(report.described_as));
+ok('no owner unless the scope names one', report.described_as?.owner === null);
+ok('profile is written to meta', sql.includes("'profile'"));
+const scope2 = scopeFile.replace('.json', '-2.json');
+fs.writeFileSync(scope2, JSON.stringify({ scope: 'work', owner: 'Pat', entities: ['Boardroom'], deep_projects: [],
+  deny_patterns: ['invite code'], topics: ['Boardroom', 'boardroom', 'the invite code project', 'Boardroom app'] }));
+const p2 = JSON.parse(run(['--memory-path', store, '--scope', scope2, '--out', out, '--json']).stdout || '{}').described_as || {};
+ok('explicit topics win, deduped, deny_patterns apply', JSON.stringify(p2.topics) === JSON.stringify(['Boardroom', 'Boardroom app']), JSON.stringify(p2));
+ok('owner comes from the scope file', p2.owner === 'Pat');
+run(['--memory-path', store, '--scope', scopeFile, '--out', out, '--json']);
+
 console.log('\n=== 5. The snapshot loads into SQLite, and reads back correctly ===');
 let sqlite;
 try { sqlite = await import('node:sqlite'); } catch { /* Node < 22.5 */ }

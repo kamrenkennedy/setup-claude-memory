@@ -99,6 +99,16 @@ How the exporter enforces it:
 The Worker serves what is in D1 and nothing else. Excluded data is not hidden by the server. It is
 absent from Cloudflare entirely.
 
+**Each user's tool descriptions come from their own snapshot.** With many connectors, Claude picks
+tools by their descriptions. The first phone test went to Notion because ours said "memories" and
+never named a project. The scope file now takes an optional `owner` and `topics`. Without `topics`,
+the exporter derives them from the projects with the most docs, then entity names. Either way they
+pass the same deny and redaction rules, ride in the snapshot's `meta.profile`, and the Worker writes
+them into every tool description and its server instructions ("Kam's long-term work memory … Covers:
+Boardroom, …"). The code holds no user's names; a second user's deployment describes itself from
+their data. The export summary prints a `described as` line so the owner reviews it before upload.
+Claude reads tool lists when a connector connects, so after a change: Disconnect, then Connect.
+
 The real scope file lives at `~/.aligned-memory/scopes/work.json`, outside this public repo,
 because its deny list is itself personal. `worker/scopes/work.example.json` shows the format. A dry
 export on 2026-10-27: 19 of 190 entities, 6,387 observations, 2,076 of 3,268 deep docs (23 of them

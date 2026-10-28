@@ -18,6 +18,17 @@ export async function snapshotInfo(db) {
   return Object.fromEntries(results.map(r => [r.key, r.value]));
 }
 
+// The owner's name and topics, written by the exporter for the tool descriptions.
+export async function profile(db) {
+  const row = await db.prepare("SELECT value FROM meta WHERE key = 'profile'").first();
+  try {
+    const p = row ? JSON.parse(row.value) : {};
+    return { owner: typeof p.owner === 'string' ? p.owner : null, topics: Array.isArray(p.topics) ? p.topics.map(String) : [] };
+  } catch {
+    return { owner: null, topics: [] };
+  }
+}
+
 export async function relations(db) {
   const { results } = await db.prepare(
     `SELECT from_name, to_name, relation_type FROM relations WHERE snap = ${SNAP} ORDER BY ord`

@@ -74,7 +74,7 @@ fs.writeFileSync(path.join(store, 'deep', 'index.json'), JSON.stringify(docs.map
   return { id, project, tags: [project.toLowerCase()], type, date, summary, embedding: [0.5] };
 })));
 const scope = path.join(tmp, 'work.json');
-fs.writeFileSync(scope, JSON.stringify({ scope: 'work', entities: ['Boardroom', 'Persona', 'Spec'], deep_projects: ['Boardroom', 'Persona'] }));
+fs.writeFileSync(scope, JSON.stringify({ scope: 'work', owner: 'Pat', entities: ['Boardroom', 'Persona', 'Spec'], deep_projects: ['Boardroom', 'Persona'] }));
 const snapshot = path.join(tmp, 'snapshot.sql');
 const exp = spawnSync('node', [path.join(ROOT, 'bin', 'memory-export.mjs'), '--memory-path', store, '--scope', scope, '--out', snapshot, '--json'], { encoding: 'utf8' });
 if (exp.status !== 0) { console.log(exp.stderr); process.exit(1); }
@@ -237,6 +237,10 @@ const lcall = async (name, args = {}) => (await local.callTool({ name, arguments
 console.log('\n=== 4. Only read tools exist ===');
 const tools = (await remote.listTools()).tools.map(t => t.name).sort();
 ok('exactly the five read tools', JSON.stringify(tools) === JSON.stringify(['aim_deep_get', 'aim_deep_list', 'aim_deep_search', 'aim_memory_get', 'aim_memory_search']), tools);
+const listed = (await remote.listTools()).tools;
+ok('descriptions name the owner and their topics', listed.every(t => t.description.startsWith("Pat's") && t.description.includes('Covers: Boardroom, Persona')),
+  listed.map(t => t.description.split('\n')[0]));
+ok('server instructions say when to use it', /Pat's long-term memory.*check here first/s.test(remote.getInstructions() || ''));
 const write = await remote.callTool({ name: 'aim_memory_add_facts', arguments: { observations: [] } });
 ok('calling a write tool fails', write.isError === true);
 

@@ -22,6 +22,12 @@
 //      scope's deny_patterns are dropped whole.
 //   4. Embeddings stay home. Deep docs go up as metadata + markdown.
 //
+// The snapshot also carries a short profile (the owner's name and the topics the
+// scope covers) that the Worker writes into its tool descriptions, so each user's
+// Claude can tell when to reach for their memory. Topics come from the scope file's
+// "topics", or else from the exported projects and entities, and pass the same deny
+// and redaction rules as everything else.
+//
 // The summary it prints reports counts, never content, so it is safe to paste.
 
 import fs from 'fs';
@@ -39,6 +45,7 @@ const REDACT_REVIEW = new Set(['Phone number', 'Email address']);
 const STATEMENT_BYTES = 60000;
 const CHUNK_CHARS = 12000;
 
+const MAX_TOPICS = 12;
 const DOC_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 const PRIVATE_KEY_BLOCK =
@@ -89,8 +96,12 @@ export function loadScope(file) {
   if (scope.deny_patterns !== undefined && !strings(scope.deny_patterns)) {
     throw new Error('"deny_patterns" must be an array of regular expressions');
   }
+  if (scope.owner !== undefined && typeof scope.owner !== 'string') throw new Error('"owner" must be a string');
+  if (scope.topics !== undefined && !strings(scope.topics)) throw new Error('"topics" must be an array of strings');
   return {
     scope: scope.scope,
+    owner: scope.owner?.trim() || null,
+    topics: scope.topics,
     entities: new Set(scope.entities),
     deepProjects: new Set(scope.deep_projects),
     deny: (scope.deny_patterns || []).map(p => new RegExp(p, 'i')),
@@ -146,6 +157,27 @@ function makeRedactor(counts) {
 
 // ─── Build ───────────────────────────────────────────────────────────────────
 
+// Without explicit topics: projects with the most docs first, then entity names,
+// with near-duplicates ("Persona — Studio" / "persona-studio") folded together.
+function deriveTopics(entities, docs) {
+  const byDocs = Object.entries(docs.reduce((m, d) => ({ ...m, [d.meta.project]: (m[d.meta.project] || 0) + 1 }), {}))
+    .sort((a, b) => b[1] - a[1]).map(([p]) => p);
+  return [...byDocs, ...entities.map(e => e.name.replace(/_/g, ' '))];
+}
+
+function topicList(candidates, keep) {
+  const seen = new Set();
+  const out = [];
+  for (const t of candidates) {
+    const key = t.toLowerCase().replace(/[^a-z0-9]+/g, '');
+    if (!key || seen.has(key) || !keep(t)) continue;
+    seen.add(key);
+    out.push(t.trim());
+    if (out.length === MAX_TOPICS) break;
+  }
+  return out;
+}
+
 export function buildSnapshot(store, scope) {
   const redactions = {};
   const redact = makeRedactor(redactions);
@@ -190,11 +222,15 @@ export function buildSnapshot(store, scope) {
     docs.push({ meta, content: redact(content) });
   }
 
+  const topics = topicList(scope.topics || deriveTopics(entities, docs), t => !denied(t)).map(redact);
+  const profile = { owner: scope.owner && redact(scope.owner), topics };
+
   return {
     scope: scope.scope,
     entities,
     relations,
     docs,
+    profile,
     report: {
       scope: scope.scope,
       entities_exported: entities.length,
@@ -207,6 +243,7 @@ export function buildSnapshot(store, scope) {
       docs_by_project: docs.reduce((m, d) => ({ ...m, [d.meta.project]: (m[d.meta.project] || 0) + 1 }), {}),
       allowlisted_projects_with_no_docs: [...scope.deepProjects].filter(p => !docs.some(d => d.meta.project === p)),
       dropped_by_deny_patterns: dropped,
+      described_as: profile,
       redactions,
     },
   };
@@ -262,6 +299,7 @@ export function toSql(snapshot, { snap, exportedAt, sourceCommit }) {
     chunked.flatMap(d => d.parts.map((p, i) => [s, d.meta.id, i, p]))));
   sql.push(...inserts('meta', ['key', 'value'], [
     ['current_snap', s], ['scope', snapshot.scope], ['exported_at', exportedAt], ['source_commit', sourceCommit || ''],
+    ['profile', JSON.stringify(snapshot.profile || { owner: null, topics: [] })],
   ]).map(q => q.replace('INSERT INTO', 'INSERT OR REPLACE INTO')));
   for (const t of SNAPSHOT_TABLES) sql.push(`DELETE FROM ${t} WHERE snap <> ${lit(s)};`);
   return sql.join('\n') + '\n';
@@ -310,6 +348,7 @@ function main(argv) {
     `  deep docs     ${r.docs_exported} exported, ${r.docs_left_home} left home`,
     ...Object.entries(r.docs_by_project).sort((a, b) => b[1] - a[1]).map(([p, n]) => `      ${String(n).padStart(5)}  ${p}`),
     `  dropped       ${r.dropped_by_deny_patterns.observations} observations, ${r.dropped_by_deny_patterns.docs} docs (deny_patterns)`,
+    `  described as  ${r.described_as.owner ? `${r.described_as.owner}'s memory: ` : ''}${r.described_as.topics.join(', ') || '(no topics)'}`,
     `  redacted      ${Object.entries(r.redactions).map(([l, n]) => `${n} ${l}`).join(', ') || 'nothing'}`,
   ];
   if (r.allowlisted_but_missing.length) lines.push(`  ⚠ allowlisted entities not in the store: ${r.allowlisted_but_missing.join(', ')}`);

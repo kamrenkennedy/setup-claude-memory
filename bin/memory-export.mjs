@@ -2,7 +2,7 @@
 // Kam Memory — Aligned Memory scope exporter
 // Part of setup-claude-memory
 //
-//   aim-memory-export --memory-path <store> --scope <scope.json> --out <snapshot.sql> [--json]
+//   aim-memory-export --memory-path <store> --scope <scope.json> --out <snapshot.sql> [--manifest <file>] [--json]
 //
 // Builds the ONLY copy of memory that reaches the cloud: a SQL snapshot for the
 // Aligned Memory Worker's D1 database. Everything about what leaves the Mac is
@@ -29,9 +29,14 @@
 // and redaction rules as everything else.
 //
 // The summary it prints reports counts, never content, so it is safe to paste.
+//
+// --manifest records what the snapshot holds (hashes, never content). bin/aligned-sync.mjs
+// compares the next export against it and uploads only what changed, because D1's free
+// plan allows 100,000 written rows a day and a full snapshot is about 32,000.
 
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import { execFileSync } from 'child_process';
 import { BLOCK_PATTERNS, REVIEW_PATTERNS } from '../lib/secret-patterns.mjs';
@@ -46,7 +51,7 @@ const STATEMENT_BYTES = 60000;
 const CHUNK_CHARS = 12000;
 
 const MAX_TOPICS = 12;
-const DOC_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+export const DOC_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 const PRIVATE_KEY_BLOCK =
   /-----BEGIN [A-Z ]*PRIVATE KEY-----(?:[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----|[A-Za-z0-9+/=\s]*)/g;
@@ -60,6 +65,8 @@ CREATE TABLE IF NOT EXISTS docs (snap TEXT NOT NULL, ord INTEGER NOT NULL, id TE
 CREATE TABLE IF NOT EXISTS doc_chunks (snap TEXT NOT NULL, id TEXT NOT NULL, seq INTEGER NOT NULL, text TEXT NOT NULL, PRIMARY KEY (snap, id, seq));
 CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, user_id TEXT, client_id TEXT, method TEXT, tool TEXT, args TEXT, outcome TEXT NOT NULL, result_chars INTEGER, ip TEXT, country TEXT);
 CREATE INDEX IF NOT EXISTS audit_log_ts ON audit_log (ts);
+CREATE TABLE IF NOT EXISTS pending (id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, user_id TEXT, tool TEXT NOT NULL, target TEXT NOT NULL, payload TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', applied_at TEXT, error TEXT);
+CREATE INDEX IF NOT EXISTS pending_status ON pending (status, id);
 `.trim();
 
 const SNAPSHOT_TABLES = ['entities', 'observations', 'relations', 'docs', 'doc_chunks'];
@@ -224,6 +231,8 @@ export function buildSnapshot(store, scope) {
 
   const topics = topicList(scope.topics || deriveTopics(entities, docs), t => !denied(t)).map(redact);
   const profile = { owner: scope.owner && redact(scope.owner), topics };
+  // What a cloud write may touch: any exported entity, and docs in these projects.
+  const writable = { deep_projects: [...scope.deepProjects] };
 
   return {
     scope: scope.scope,
@@ -231,6 +240,7 @@ export function buildSnapshot(store, scope) {
     relations,
     docs,
     profile,
+    writable,
     report: {
       scope: scope.scope,
       entities_exported: entities.length,
@@ -251,11 +261,11 @@ export function buildSnapshot(store, scope) {
 
 // ─── SQL ─────────────────────────────────────────────────────────────────────
 
-const lit = v => (v === null || v === undefined ? 'NULL'
+export const lit = v => (v === null || v === undefined ? 'NULL'
   : typeof v === 'number' ? String(v)
   : `'${String(v).replace(/'/g, "''")}'`);
 
-function inserts(table, columns, rows) {
+export function inserts(table, columns, rows) {
   const out = [];
   const head = `INSERT INTO ${table} (${columns.join(', ')}) VALUES `;
   let batch = [];
@@ -273,7 +283,7 @@ function inserts(table, columns, rows) {
   return out;
 }
 
-function chunk(text) {
+export function chunk(text) {
   const parts = [];
   for (let i = 0; i < text.length; i += CHUNK_CHARS) parts.push(text.slice(i, i + CHUNK_CHARS));
   return parts.length ? parts : [''];
@@ -297,15 +307,118 @@ export function toSql(snapshot, { snap, exportedAt, sourceCommit }) {
       d.meta.date ?? null, d.meta.summary, JSON.stringify(d.meta.tags), JSON.stringify(d.meta), d.parts.length])));
   sql.push(...inserts('doc_chunks', ['snap', 'id', 'seq', 'text'],
     chunked.flatMap(d => d.parts.map((p, i) => [s, d.meta.id, i, p]))));
-  sql.push(...inserts('meta', ['key', 'value'], [
-    ['current_snap', s], ['scope', snapshot.scope], ['exported_at', exportedAt], ['source_commit', sourceCommit || ''],
-    ['profile', JSON.stringify(snapshot.profile || { owner: null, topics: [] })],
-  ]).map(q => q.replace('INSERT INTO', 'INSERT OR REPLACE INTO')));
+  sql.push(...inserts('meta', ['key', 'value'], metaRows(snapshot, { snap: s, exportedAt, sourceCommit })).map(q => q.replace('INSERT INTO', 'INSERT OR REPLACE INTO')));
   for (const t of SNAPSHOT_TABLES) sql.push(`DELETE FROM ${t} WHERE snap <> ${lit(s)};`);
   return sql.join('\n') + '\n';
 }
 
+// ─── Incremental ─────────────────────────────────────────────────────────────
+
+const sha = v => crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex').slice(0, 32);
+
+export function metaRows(snapshot, { snap, exportedAt, sourceCommit }) {
+  return [
+    ['current_snap', snap], ['scope', snapshot.scope], ['exported_at', exportedAt], ['source_commit', sourceCommit || ''],
+    ['profile', JSON.stringify(snapshot.profile || { owner: null, topics: [] })],
+    ['writable', JSON.stringify(snapshot.writable || { deep_projects: [] })],
+  ];
+}
+
+// What the cloud holds after this snapshot lands, as hashes. Never content.
+export function manifestOf(snapshot, snap) {
+  return {
+    snap,
+    entities: Object.fromEntries(snapshot.entities.map(e => [e.name, { count: e.observations.length, hash: sha(e.observations) }])),
+    relations: sha(snapshot.relations),
+    docs: Object.fromEntries(snapshot.docs.map(d => [d.meta.id, sha([d.meta, d.content])])),
+    meta: sha([snapshot.scope, snapshot.profile, snapshot.writable]),
+  };
+}
+
+// The statements that turn what the cloud holds into this snapshot. `cloud` is read from
+// D1 just before (entity counts and order, doc ids and order), because the cloud can hold
+// rows the manifest never saw: writes from the phone. `skip` holds entities and doc ids
+// with a cloud write the Mac has not taken in yet; they are left exactly as they are
+// until it has. Every unit starts by deleting what it rewrites, so a run that dies
+// partway is repaired by the next. Returns the statements and the manifest to save.
+export function diffSql(snapshot, previous, cloud, { snap, exportedAt, sourceCommit, skip = { entities: new Set(), docs: new Set() } }) {
+  const S = lit(snap);
+  const sql = [];
+  const next = manifestOf(snapshot, snap);
+  const keep = (map, key) => { if (previous[map]?.[key] !== undefined) next[map][key] = previous[map][key]; else delete next[map][key]; };
+
+  const wanted = new Set();
+  snapshot.entities.forEach((e, ord) => {
+    wanted.add(e.name);
+    if (skip.entities.has(e.name)) return keep('entities', e.name);
+    const was = previous.entities?.[e.name];
+    const there = cloud.entities.get(e.name);
+    const obs = e.observations;
+    let from;
+    if (!was || !there || there.obs_count < was.count) from = 0;
+    else if (there.obs_count === obs.length && was.count === obs.length && was.hash === sha(obs)) from = null;
+    else if (obs.length >= was.count && sha(obs.slice(0, was.count)) === was.hash) from = was.count;
+    else from = 0;
+
+    if (from === null) {
+      if (there.ord !== ord || (there.entity_type ?? null) !== (e.entityType ?? null)) {
+        sql.push(`UPDATE entities SET ord = ${ord}, entity_type = ${lit(e.entityType ?? null)} WHERE snap = ${S} AND name = ${lit(e.name)};`);
+      }
+      return;
+    }
+    sql.push(`DELETE FROM observations WHERE snap = ${S} AND entity = ${lit(e.name)} AND idx >= ${from};`);
+    sql.push(...inserts('observations', ['snap', 'entity', 'idx', 'text'],
+      obs.slice(from).map((o, i) => [snap, e.name, from + i, o])).map(q => q.replace('INSERT INTO', 'INSERT OR REPLACE INTO')));
+    sql.push(`INSERT OR REPLACE INTO entities (snap, ord, name, entity_type, obs_count) VALUES (${S}, ${ord}, ${lit(e.name)}, ${lit(e.entityType ?? null)}, ${obs.length});`);
+  });
+  for (const name of cloud.entities.keys()) {
+    if (wanted.has(name) || skip.entities.has(name)) continue;
+    sql.push(`DELETE FROM observations WHERE snap = ${S} AND entity = ${lit(name)};`, `DELETE FROM entities WHERE snap = ${S} AND name = ${lit(name)};`);
+  }
+
+  if (previous.relations !== next.relations) {
+    sql.push(`DELETE FROM relations WHERE snap = ${S};`);
+    sql.push(...inserts('relations', ['snap', 'ord', 'from_name', 'to_name', 'relation_type'],
+      snapshot.relations.map((r, i) => [snap, i, r.from, r.to, r.relationType])));
+  }
+
+  const docIds = new Set();
+  snapshot.docs.forEach((d, ord) => {
+    const id = d.meta.id;
+    docIds.add(id);
+    if (skip.docs.has(id)) return keep('docs', id);
+    const there = cloud.docs.get(id);
+    if (there !== undefined && previous.docs?.[id] === next.docs[id]) {
+      if (there !== ord) sql.push(`UPDATE docs SET ord = ${ord} WHERE snap = ${S} AND id = ${lit(id)};`);
+      return;
+    }
+    const parts = chunk(d.content);
+    sql.push(`DELETE FROM doc_chunks WHERE snap = ${S} AND id = ${lit(id)};`);
+    sql.push(`INSERT OR REPLACE INTO docs (snap, ord, id, project, client, type, date, summary, tags, meta, chunks) VALUES (${[snap, ord, id,
+      d.meta.project ?? null, d.meta.client ?? null, d.meta.type ?? null, d.meta.date ?? null, d.meta.summary,
+      JSON.stringify(d.meta.tags), JSON.stringify(d.meta), parts.length].map(lit).join(', ')});`);
+    sql.push(...inserts('doc_chunks', ['snap', 'id', 'seq', 'text'], parts.map((p, i) => [snap, id, i, p])));
+  });
+  for (const id of cloud.docs.keys()) {
+    if (docIds.has(id) || skip.docs.has(id)) continue;
+    sql.push(`DELETE FROM doc_chunks WHERE snap = ${S} AND id = ${lit(id)};`, `DELETE FROM docs WHERE snap = ${S} AND id = ${lit(id)};`);
+  }
+
+  if (sql.length || previous.meta !== next.meta) {
+    sql.push(...inserts('meta', ['key', 'value'], metaRows(snapshot, { snap, exportedAt, sourceCommit }))
+      .map(q => q.replace('INSERT INTO', 'INSERT OR REPLACE INTO')));
+  }
+  return { sql, manifest: next };
+}
+
 // ─── Main ────────────────────────────────────────────────────────────────────
+
+export function sourceCommitOf(store) {
+  try {
+    return execFileSync('git', ['-C', store, 'rev-parse', 'HEAD'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch { return ''; /* not a git store */ }
+}
 
 function arg(argv, name) {
   const i = argv.indexOf(name);
@@ -317,7 +430,7 @@ function main(argv) {
   const scopeFile = arg(argv, '--scope');
   const out = arg(argv, '--out');
   if (!store || !scopeFile || !out) {
-    process.stderr.write('Usage: aim-memory-export --memory-path <store> --scope <scope.json> --out <snapshot.sql> [--json]\n');
+    process.stderr.write('Usage: aim-memory-export --memory-path <store> --scope <scope.json> --out <snapshot.sql> [--manifest <file>] [--json]\n');
     return 2;
   }
   if (!fs.existsSync(store) || !fs.statSync(store).isDirectory()) {
@@ -326,14 +439,14 @@ function main(argv) {
   }
 
   const snapshot = buildSnapshot(path.resolve(store), loadScope(scopeFile));
-  let sourceCommit = '';
-  try {
-    sourceCommit = execFileSync('git', ['-C', store, 'rev-parse', 'HEAD'],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-  } catch { /* not a git store */ }
+  const sourceCommit = sourceCommitOf(store);
   const exportedAt = new Date().toISOString();
   const snap = `${exportedAt.replace(/[^0-9]/g, '').slice(0, 14)}-${crypto.randomBytes(3).toString('hex')}`;
   fs.writeFileSync(out, toSql(snapshot, { snap, exportedAt, sourceCommit }), { mode: 0o600 });
+  // Written beside the snapshot, and only describes it: aligned-sync trusts it once the
+  // cloud's current_snap matches, which happens only when this snapshot is uploaded.
+  const manifestFile = arg(argv, '--manifest');
+  if (manifestFile) fs.writeFileSync(manifestFile, JSON.stringify(manifestOf(snapshot, snap)) + '\n', { mode: 0o600 });
 
   const report = { ...snapshot.report, snapshot: snap, source_commit: sourceCommit, out };
   if (argv.includes('--json')) {
@@ -359,7 +472,7 @@ function main(argv) {
   return 0;
 }
 
-if (process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(new URL(import.meta.url).pathname)) {
+if (process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url))) {
   try {
     process.exit(main(process.argv.slice(2)));
   } catch (err) {

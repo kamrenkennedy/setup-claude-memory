@@ -230,9 +230,17 @@ const DRIVER_FILES = ['memory-merge-driver.mjs', 'deep-index-merge-driver.mjs'];
 // Copy the drivers somewhere that outlives this run. Registering them from __dirname
 // points git into the npx cache, which npx can prune or replace at any time — and a
 // driver that has vanished fails exactly like one that never ran.
+// Aligned Memory's sync runs from the same place for the same reason. It needs no
+// node_modules, only these files in their bin/ and lib/ layout.
+const ALIGNED_FILES = [['bin', 'aligned-sync.mjs'], ['bin', 'memory-export.mjs'], ['lib', 'secret-patterns.mjs']];
+
 function installDrivers(destDir) {
   fs.mkdirSync(destDir, { recursive: true });
   for (const f of DRIVER_FILES) fs.copyFileSync(path.join(__dirname, f), path.join(destDir, f));
+  for (const [dir, f] of ALIGNED_FILES) {
+    fs.mkdirSync(path.join(destDir, 'aligned', dir), { recursive: true });
+    fs.copyFileSync(path.join(__dirname, '..', dir, f), path.join(destDir, 'aligned', dir, f));
+  }
   return destDir;
 }
 
@@ -309,6 +317,7 @@ export PATH=${nodeDirs().map(d => JSON.stringify(d)).join(':')}:"$PATH"
 REPO=${JSON.stringify(repo)}
 LOG=${JSON.stringify(logPath)}
 FAILURES=${JSON.stringify(failures)}
+ALIGNED=${JSON.stringify(path.join(path.dirname(logPath), 'aligned', 'bin', 'aligned-sync.mjs'))}
 
 log() { echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $*" >> "$LOG"; }
 
@@ -339,6 +348,12 @@ cd "$REPO" 2>/dev/null || fail "repo missing: $REPO"
 # merge fall back to git's text merge and abort.
 command -v node >/dev/null 2>&1 || fail "node not found on PATH ($PATH) — the merge drivers cannot run. Re-run: npx setup-claude-memory@latest"
 
+# Aligned Memory (only on a Mac where ~/.aligned-memory/config.json exists): take in
+# writes made from the phone before committing, and upload changes after pushing. It
+# keeps its own failure count and alerts, and never stops the git sync.
+aligned() { [ -f "$ALIGNED" ] && { node "$ALIGNED" "$1" >> "$LOG" 2>&1 || log "aligned $1 did not finish (see above)"; }; return 0; }
+aligned intake
+
 git add -A
 if ! git diff --cached --quiet; then
   git commit -q -m "memory: $(date -u +%Y-%m-%dT%H:%MZ)" || fail "commit"
@@ -360,6 +375,8 @@ fi
 if ! git push -q; then
   fail "push (offline or auth expired) — commits are safe locally, will retry next run."
 fi
+
+aligned refresh
 
 n=$(count)
 if [ "$n" -gt 0 ]; then

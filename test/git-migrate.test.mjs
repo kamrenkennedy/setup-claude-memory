@@ -533,6 +533,16 @@ deep/index.json merge=union
     ok(`${key} is registered from the installed copy, quoted`,
        M.git(repo, ['config', `merge.${key}.driver`]).includes(`'${installed}'`));
   }
+  // Aligned Memory's sync runs from the installed copy, with no node_modules beside it.
+  const aligned = path.join(dest, 'aligned', 'bin', 'aligned-sync.mjs');
+  ok('aligned-sync is installed with what it imports', fs.existsSync(aligned)
+     && fs.existsSync(path.join(dest, 'aligned', 'bin', 'memory-export.mjs')) && fs.existsSync(path.join(dest, 'aligned', 'lib', 'secret-patterns.mjs')));
+  const standalone = spawnSync('node', [aligned, 'run', '--config', path.join(dest, 'no-config.json')], { encoding: 'utf8' });
+  ok('the installed copy runs on its own, and does nothing without a config', standalone.status === 0, standalone.stderr);
+  const sh = M.syncScript(repo, path.join(dest, 'sync.log'));
+  ok('sync.sh takes in phone writes before committing and uploads after pushing',
+     sh.indexOf('aligned intake') < sh.indexOf('git add -A') && sh.indexOf('aligned refresh') > sh.indexOf('git push -q'));
+  ok('sync.sh points at the installed copy', sh.includes(JSON.stringify(aligned)));
   fs.rmSync(dest, { recursive: true, force: true });
   fs.rmSync(repo, { recursive: true, force: true });
 }

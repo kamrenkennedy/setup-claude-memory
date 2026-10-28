@@ -30,7 +30,7 @@ function servers(env) {
     resources: [resource],
     defaultResource: resource,
     clientRegistrationEndpoint: '/register',
-    scopesSupported: ['mcp:read', 'offline_access'],
+    scopesSupported: ['mcp:read', 'mcp:write', 'offline_access'],
     clientIdMetadataDocumentEnabled: true,
     accessTokenTTL: 3600,
     refreshTokenTTL: 30 * 24 * 3600,
@@ -112,7 +112,7 @@ async function mcpHandler(request, env, ctx) {
     row.method = request.method;
   }
 
-  const response = await handleMcp(request, env, row);
+  const response = await handleMcp(request, env, row, { canWrite: ctx.auth.scope.includes('mcp:write'), userId: props.userId });
   if (response.status >= 400 && row.outcome === 'ok') row.outcome = `http_${response.status}`;
   writeAudit(env, ctx, request, row);
   return response;
@@ -141,9 +141,9 @@ function consentPage(details, handle) {
   const origin = details.clientDomain
     ? `Published by <strong>${escape(details.clientDomain)}</strong>.`
     : 'This app registered itself, so its name is not verified.';
-  return `<h1>Let ${name} read your memory?</h1>
+  return `<h1>Let ${name} use your memory?</h1>
 <p>${origin} Access goes to <strong>${escape(details.redirectHost)}</strong>.</p>
-<p>It can read your work memory. It cannot change anything.</p>
+<p>It can read your work memory and add new facts and documents to it. It cannot change or delete anything already there.</p>
 ${details.redirectIsLoopback ? '<p class="warn"><strong>This sends access to an app on this computer.</strong> Continue only if you just started connecting from it, such as Claude Code.</p>' : ''}
 <form method="post">
   <input type="hidden" name="handle" value="${escape(handle)}">
@@ -176,7 +176,7 @@ async function authorize(request, env, ctx, oauth, origin) {
     const denied = await oauth.denyConsent(request, handle);
     return new Response(null, { status: 302, headers: denied.headers });
   }
-  const approved = await oauth.approveConsent(request, handle, { scope: ['mcp:read'] });
+  const approved = await oauth.approveConsent(request, handle, { scope: ['mcp:read', 'mcp:write'] });
   const verifier = crypto.randomUUID() + crypto.randomUUID();
   const { state, headers } = await oauth.beginUpstream(approved.request, { data: { verifier }, headers: approved.headers });
   const to = new URL('/login/oauth/authorize', GITHUB_OAUTH(env));

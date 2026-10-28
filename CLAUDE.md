@@ -280,13 +280,18 @@ aborts the sync rather than corrupting anything (verified).
 
 ## Current state (update at end of each session)
 
-- **Aligned Memory step 1 (deployed 2026-10-28):** live and connected in Claude, branch
-  `aligned-memory-remote-mcp`, draft PR #8 (not merged). Read-only remote MCP Worker in `worker/`,
-  exporter `bin/memory-export.mjs`, shared read core `lib/read-core.mjs`. Spec + runbook:
+- **Aligned Memory step 1 (deployed 2026-10-28, PR #8 merged):** read-only remote MCP Worker in
+  `worker/`, exporter `bin/memory-export.mjs`, shared read core `lib/read-core.mjs`. Spec + runbook:
   `docs/ALIGNED-MEMORY.md`. Deployment settings (URL, GitHub app, allowed id) are Cloudflare
   secrets, never in this public repo; the URL is in Kam Memory. Kam's scope file is
-  `~/.aligned-memory/scopes/work.json` (outside the repo on purpose). The cloud copy refreshes only
-  when runbook step 5 is rerun. The exporter is not in package.json `bin`/`files` yet.
+  `~/.aligned-memory/scopes/work.json` (outside the repo on purpose).
+- **Aligned Memory step 2 (built 2026-10-28, branch `aligned-memory-writes`, NOT deployed):**
+  add-only phone writes (`aim_memory_add_facts`, `aim_deep_store`, scope `mcp:write`) queued in D1
+  `pending`; `bin/aligned-sync.mjs` drains them through the local MCP servers and uploads
+  change-only diffs (D1 free plan: 100k written rows/day; a full upload is ~32k). Hooked into
+  sync.sh, installed to `Application Support/claude-memory-sync/aligned/`. Needs a D1-only
+  Cloudflare token in the keychain (`aligned-memory-d1`), `~/.aligned-memory/config.json`, one full
+  upload with `--manifest`, a Worker deploy, a connector reconnect, and a release to reach sync.sh.
 - **Local + GitHub:** v1.11.0, main `4113881`, tagged `v1.11.0`. **npm latest:** v1.11.0 (shasum
   `474226b4…`). Parity confirmed 2026-09-12, and the published artifact was verified by a fresh npm
   install + handshake. Tags v1.10.0/v1.10.1 were added retroactively the same day.

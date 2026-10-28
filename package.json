@@ -1,7 +1,7 @@
 {
   "name": "setup-claude-memory",
   "version": "1.11.0",
-  "description": "Interactive CLI to set up Claude persistent memory via iCloud — knowledge graph with search-first reads + deep context archive with semantic search, powered by MCP",
+  "description": "Interactive CLI to set up Claude persistent memory via iCloud \u2014 knowledge graph with search-first reads + deep context archive with semantic search, powered by MCP",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/kamrenkennedy/setup-claude-memory.git"
@@ -15,18 +15,21 @@
     "aim-deep-context-server": "bin/deep-context-server.mjs",
     "aim-memory-server": "bin/memory-server.mjs",
     "aim-memory-merge": "bin/memory-merge-driver.mjs",
-    "aim-memory-scan": "bin/memory-scan.mjs"
+    "aim-memory-scan": "bin/memory-scan.mjs",
+    "aim-memory-export": "bin/memory-export.mjs",
+    "aim-aligned-sync": "bin/aligned-sync.mjs"
   },
   "scripts": {
     "start": "node ./bin/setup.js",
-    "test": "npm run test:server && npm run test:merge && npm run test:scan && npm run test:git && npm run test:compact && npm run test:export && npm run test:worker",
+    "test": "npm run test:server && npm run test:merge && npm run test:scan && npm run test:git && npm run test:compact && npm run test:export && npm run test:worker && npm run test:aligned",
     "test:server": "node test/memory-server.test.mjs",
     "test:merge": "node test/merge-driver.test.mjs",
     "test:scan": "node test/memory-scan.test.mjs",
     "test:git": "node test/git-migrate.test.mjs",
     "test:compact": "node test/memory-compact.test.mjs",
     "test:export": "node --no-warnings test/memory-export.test.mjs",
-    "test:worker": "node test/worker.test.mjs"
+    "test:worker": "node test/worker.test.mjs",
+    "test:aligned": "node --no-warnings test/aligned-sync.test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -61,6 +64,8 @@
     "bin/memory-scan.mjs",
     "bin/git-migrate.js",
     "bin/memory-compact.js",
+    "bin/memory-export.mjs",
+    "bin/aligned-sync.mjs",
     "bin/apple-embed.swift",
     "lib/read-core.mjs",
     "lib/secret-patterns.mjs",

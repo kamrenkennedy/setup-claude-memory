@@ -195,6 +195,7 @@ console.log('\n=== 2. The owner signs in through consent, GitHub and PKCE ===');
 const s = await signIn();
 ok('consent page shows the client and the redirect host', s.html.includes('Test Client') && s.html.includes('127.0.0.1'));
 ok('consent page warns about a local app', s.html.includes('an app on this computer'));
+ok('consent page says writes only add', s.html.includes('cannot change or delete anything already there'));
 ok('consent page cannot be framed', (s.consent.headers.get('content-security-policy') || '').includes("frame-ancestors 'none'"));
 ok('approval goes to GitHub with PKCE', s.toGithub.pathname === '/login/oauth/authorize' && s.toGithub.searchParams.get('code_challenge_method') === 'S256');
 ok('GitHub is asked for no scopes', !s.toGithub.searchParams.get('scope'));
@@ -205,7 +206,7 @@ const tokenRes = await fetch(asMeta.token_endpoint, { method: 'POST', headers: {
 const tokens = await tokenRes.json();
 ok('token exchange succeeds', !!tokens.access_token, JSON.stringify(tokens));
 ok('a refresh token is issued', !!tokens.refresh_token);
-ok('token carries mcp:read only', tokens.scope === 'mcp:read', tokens.scope);
+ok('token carries read and add, nothing more', tokens.scope === 'mcp:read mcp:write', tokens.scope);
 
 console.log('\n=== 3. Anyone else is refused at sign-in ===');
 const evil = await (await fetch(asMeta.registration_endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -234,15 +235,17 @@ await local.connect(new StdioClientTransport({ command: 'node', args: [path.join
 const rcall = async (name, args = {}) => (await remote.callTool({ name, arguments: args })).content[0].text;
 const lcall = async (name, args = {}) => (await local.callTool({ name, arguments: args })).content[0].text;
 
-console.log('\n=== 4. Only read tools exist ===');
+console.log('\n=== 4. Read tools, plus two that only add ===');
 const tools = (await remote.listTools()).tools.map(t => t.name).sort();
-ok('exactly the five read tools', JSON.stringify(tools) === JSON.stringify(['aim_deep_get', 'aim_deep_list', 'aim_deep_search', 'aim_memory_get', 'aim_memory_search']), tools);
+ok('the five read tools and two add-only tools', JSON.stringify(tools) === JSON.stringify(['aim_deep_get', 'aim_deep_list', 'aim_deep_search', 'aim_deep_store', 'aim_memory_add_facts', 'aim_memory_get', 'aim_memory_search']), tools);
+const forget = await remote.callTool({ name: 'aim_memory_forget', arguments: { entityNames: ['Boardroom'] } });
+ok('a deleting tool does not exist', forget.isError === true);
 const listed = (await remote.listTools()).tools;
 ok('descriptions name the owner and their topics', listed.every(t => t.description.startsWith("Pat's") && t.description.includes('Covers: Boardroom, Persona')),
   listed.map(t => t.description.split('\n')[0]));
 ok('server instructions say when to use it', /Pat's long-term memory.*check here first/s.test(remote.getInstructions() || ''));
 const write = await remote.callTool({ name: 'aim_memory_add_facts', arguments: { observations: [] } });
-ok('calling a write tool fails', write.isError === true);
+ok('an empty write is an error', write.isError === true);
 
 console.log('\n=== 5. Results match the local server exactly ===');
 for (const [name, args] of [
@@ -286,6 +289,20 @@ await deepLocal.close();
 ok('a doc body matches the local deep-context server', JSON.parse(await rcall('aim_deep_get', { id: 'boardroom-native-2026-10-20' })).content === localDoc.content);
 const missing = await remote.callTool({ name: 'aim_deep_get', arguments: { id: 'family-2026-09-02' } });
 ok('an out-of-scope doc id is not found', missing.isError === true);
+
+console.log('\n=== 7b. Writes over MCP are readable at once and wait for the Mac ===');
+const addedFacts = JSON.parse(await rcall('aim_memory_add_facts', { observations: [{ entityName: 'Boardroom', contents: ['remote fact from the phone'] }] }));
+ok('a fact is added', addedFacts[0].addedObservations[0] === 'remote fact from the phone');
+ok('the next search finds it', JSON.parse(await rcall('aim_memory_search', { query: 'remote fact' })).observations_returned === 1);
+const outside = await remote.callTool({ name: 'aim_memory_add_facts', arguments: { observations: [{ entityName: 'Health_Plan', contents: ['x'] }] } });
+ok('an entity outside the scope is refused', outside.isError && outside.content[0].text.includes('not found'));
+await rcall('aim_deep_store', { id: 'boardroom-from-phone', project: 'Boardroom', tags: ['phone'], type: 'decision-log', date: '2026-10-28', summary: 'written remotely', content: 'remote body' });
+ok('a stored doc reads back', JSON.parse(await rcall('aim_deep_get', { id: 'boardroom-from-phone' })).content === 'remote body');
+ok('and lists first among same-day docs or later', JSON.parse(await rcall('aim_deep_list')).count === 4);
+const overwrite = await remote.callTool({ name: 'aim_deep_store', arguments: { id: 'boardroom-native-2026-10-20', project: 'Boardroom', tags: [], type: 'research', date: 'd', summary: 's', content: 'c' } });
+ok('an existing doc cannot be overwritten', overwrite.isError && overwrite.content[0].text.includes('already exists'));
+const waiting = d1("SELECT tool, target, user_id FROM pending WHERE status = 'pending' ORDER BY id");
+ok('both writes wait for the Mac, with the owner', waiting.length === 2 && waiting.every(w => w.user_id === `github-${OWNER_ID}`), JSON.stringify(waiting));
 
 console.log('\n=== 8. Every call is in the audit log ===');
 await new Promise(r => setTimeout(r, 500));

@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS entities (snap TEXT NOT NULL, ord INTEGER NOT NULL, name TEXT NOT NULL, entity_type TEXT, obs_count INTEGER NOT NULL, PRIMARY KEY (snap, name));
 CREATE TABLE IF NOT EXISTS observations (snap TEXT NOT NULL, entity TEXT NOT NULL, idx INTEGER NOT NULL, text TEXT NOT NULL, PRIMARY KEY (snap, entity, idx));
 CREATE TABLE IF NOT EXISTS relations (snap TEXT NOT NULL, ord INTEGER NOT NULL, from_name TEXT NOT NULL, to_name TEXT NOT NULL, relation_type TEXT NOT NULL, PRIMARY KEY (snap, ord));
-CREATE TABLE IF NOT EXISTS docs (snap TEXT NOT NULL, id TEXT NOT NULL, project TEXT, client TEXT, type TEXT, date TEXT, summary TEXT, tags TEXT NOT NULL, meta TEXT NOT NULL, chunks INTEGER NOT NULL, PRIMARY KEY (snap, id));
+CREATE TABLE IF NOT EXISTS docs (snap TEXT NOT NULL, ord INTEGER NOT NULL, id TEXT NOT NULL, project TEXT, client TEXT, type TEXT, date TEXT, summary TEXT, tags TEXT NOT NULL, meta TEXT NOT NULL, chunks INTEGER NOT NULL, PRIMARY KEY (snap, id));
 CREATE TABLE IF NOT EXISTS doc_chunks (snap TEXT NOT NULL, id TEXT NOT NULL, seq INTEGER NOT NULL, text TEXT NOT NULL, PRIMARY KEY (snap, id, seq));
 CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, user_id TEXT, client_id TEXT, method TEXT, tool TEXT, args TEXT, outcome TEXT NOT NULL, result_chars INTEGER, ip TEXT, country TEXT);
 CREATE INDEX IF NOT EXISTS audit_log_ts ON audit_log (ts);
@@ -113,9 +113,11 @@ function loadGraph(store) {
   return graph;
 }
 
+// Same rule as the deep-context server's parseFrontmatter, so aim_deep_get returns the
+// same body from either server.
 function splitFrontmatter(raw) {
-  const m = raw.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/);
-  return m ? raw.slice(m[0].length) : raw;
+  const m = raw.match(/^---\n[\s\S]*?\n---\n([\s\S]*)$/);
+  return m ? m[1].trim() : raw;
 }
 
 // ─── Redaction ───────────────────────────────────────────────────────────────
@@ -252,8 +254,8 @@ export function toSql(snapshot, { snap, exportedAt, sourceCommit }) {
   sql.push(...inserts('relations', ['snap', 'ord', 'from_name', 'to_name', 'relation_type'],
     snapshot.relations.map((r, i) => [s, i, r.from, r.to, r.relationType])));
   const chunked = snapshot.docs.map(d => ({ ...d, parts: chunk(d.content) }));
-  sql.push(...inserts('docs', ['snap', 'id', 'project', 'client', 'type', 'date', 'summary', 'tags', 'meta', 'chunks'],
-    chunked.map(d => [s, d.meta.id, d.meta.project ?? null, d.meta.client ?? null, d.meta.type ?? null,
+  sql.push(...inserts('docs', ['snap', 'ord', 'id', 'project', 'client', 'type', 'date', 'summary', 'tags', 'meta', 'chunks'],
+    chunked.map((d, i) => [s, i, d.meta.id, d.meta.project ?? null, d.meta.client ?? null, d.meta.type ?? null,
       d.meta.date ?? null, d.meta.summary, JSON.stringify(d.meta.tags), JSON.stringify(d.meta), d.parts.length])));
   sql.push(...inserts('doc_chunks', ['snap', 'id', 'seq', 'text'],
     chunked.flatMap(d => d.parts.map((p, i) => [s, d.meta.id, i, p]))));

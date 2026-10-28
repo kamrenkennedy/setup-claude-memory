@@ -60,6 +60,8 @@
     "bin/git-migrate.js",
     "bin/memory-compact.js",
     "bin/apple-embed.swift",
+    "lib/read-core.mjs",
+    "lib/secret-patterns.mjs",
     "templates/**",
     "package.json",
     "README.md"

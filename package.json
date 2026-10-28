@@ -19,12 +19,13 @@
   },
   "scripts": {
     "start": "node ./bin/setup.js",
-    "test": "npm run test:server && npm run test:merge && npm run test:scan && npm run test:git && npm run test:compact",
+    "test": "npm run test:server && npm run test:merge && npm run test:scan && npm run test:git && npm run test:compact && npm run test:export",
     "test:server": "node test/memory-server.test.mjs",
     "test:merge": "node test/merge-driver.test.mjs",
     "test:scan": "node test/memory-scan.test.mjs",
     "test:git": "node test/git-migrate.test.mjs",
-    "test:compact": "node test/memory-compact.test.mjs"
+    "test:compact": "node test/memory-compact.test.mjs",
+    "test:export": "node --no-warnings test/memory-export.test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
